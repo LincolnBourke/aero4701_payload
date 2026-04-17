@@ -7,10 +7,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 
-add_executable(aero4701_payload 
+add_executable(payload 
     src/main.cpp
     src/stewartPlatform.cpp
 )
 
-target_include_directories(aero4701_payload PRIVATE include)
-target_link_libraries(aero4701_payload PRIVATE Eigen3::Eigen)
+target_include_directories(payload PRIVATE include)
+target_link_libraries(payload PRIVATE Eigen3::Eigen)
