@@ -10,6 +10,7 @@ find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 add_executable(payload 
     src/main.cpp
     src/stewartPlatform.cpp
+    src/servoMotor.cpp
 )
 
 target_include_directories(payload PRIVATE include)
