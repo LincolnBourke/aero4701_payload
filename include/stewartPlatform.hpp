@@ -8,6 +8,8 @@
 #ifndef STEWARTPLATFORM_H
 #define STEWARTPLATFORM_H
 
+#include "servoMotor.hpp"
+
 #include <array>
 #include <Eigen/Dense>
 
@@ -44,6 +46,9 @@ class StewartPlatform
 
         // Required servo angles for the latest platform pose target   
         std::array<float, NUM_SERVOS> servo_targets;
+        
+        // The Stewart platform servo motors
+        std::array<ServoMotor, NUM_SERVOS> servos;
 
         // Calculate the required servo angles to achieve the latest platform pose.
         // Implements the inverse kinematics of the Stewart platform. 
@@ -51,7 +56,7 @@ class StewartPlatform
 
         // Calculate the position of the platform using the true motor angles. 
         // Implements the forward kinematics of the Stewart platform. 
-        bool computePlatformPosition();
+        bool computePlatformPosition(std::array<float, NUM_SERVOS> angles);
     
     public: 
         StewartPlatform();
@@ -61,8 +66,11 @@ class StewartPlatform
         bool moveTo(PlatformPose* target_pose);
 
         // Returns an array of the servo motor angles required to achieve the 
-        // last legitimate pose
-        std::array<float, NUM_SERVOS> getServoTargets();
+        // last target platform pose set with moveTo()
+        const std::array<float, NUM_SERVOS>& getServoTargets() const;
+
+        // Returns the current pose of the platform  
+        const PlatformPose& getPlatformPose() const;
 };
 
 #endif

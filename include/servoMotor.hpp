@@ -14,4 +14,7 @@ class ServoMotor
         ~ServoMotor();
 
         float getAngle();
+
+        // Used solely for testing, the angle should be set by motor feedback
+        void setAngle(float angle);
 };

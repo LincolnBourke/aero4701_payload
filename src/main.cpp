@@ -21,9 +21,14 @@ int main() {
 
     stewart_platform.moveTo(&target_pose);
 
-    std::array<float, NUM_SERVOS> servo_targets = stewart_platform.getServoTargets();
+    const std::array<float, NUM_SERVOS> servo_targets = stewart_platform.getServoTargets();
 
     for (int i = 0; i < NUM_SERVOS; i++)
         std::cout << servo_targets[i] * 180 / M_PI << ", ";
     std::cout << std::endl;
+
+    // Try to recover the platform pose from the leg lengths
+    
+
+
 }
