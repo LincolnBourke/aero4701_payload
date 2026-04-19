@@ -46,8 +46,14 @@ StewartPlatform::StewartPlatform()
         // std::cout << "Platform Anchor " << i+1 << ": " << platform_anchors[i+1].transpose() << std::endl;
     }
 
+    // Initialise the true platform pose 
+    // TODO: update with a calculation of the true pose
     platform_pose.position = Vector3f(0, 0, 0);
-    platform_pose.orientation = Eigen::Quaternionf(1, 0, 0, 0);
+    platform_pose.orientation = Quaternionf(1, 0, 0, 0);
+    
+    // Initialise the target platform pose
+    platform_pose_target.position = Vector3f(0, 0, 0);
+    platform_pose_target.orientation = Quaternionf(1, 0, 0, 0);
     servo_targets = {0, 0, 0, 0, 0, 0};
 };
 
@@ -72,9 +78,9 @@ bool StewartPlatform::moveTo(PlatformPose* target_pose)
     else 
     {
         // Update internal pose target
-        platform_pose.position = target_pose->position;
-        platform_pose.orientation = target_pose->orientation;
-        platform_pose.position[2] += (BASE_Z_OFFSET + PLATFORM_Z_OFFSET);
+        platform_pose_target.position = target_pose->position;
+        platform_pose_target.orientation = target_pose->orientation;
+        platform_pose_target.position[2] += (BASE_Z_OFFSET + PLATFORM_Z_OFFSET);
 
         successful_calculation = computeServoTargets();
     }
@@ -82,20 +88,22 @@ bool StewartPlatform::moveTo(PlatformPose* target_pose)
     return successful_calculation;
 };
 
+// Implements the inverse kinematics for the Stewart platform
 bool StewartPlatform::computeServoTargets()
 {
-    bool successful_calculation = false;
+    bool successful_calculation = true;
 
     // Compute angle for each servo
     for (int i = 0; i < NUM_SERVOS; i++)
     {
         // Compute distance between base and platform arm anchor points
-        Vector3f effective_arm = platform_pose.position + platform_pose.orientation * platform_anchors[i] - base_anchors[i]; 
+        Vector3f effective_arm = platform_pose_target.position + platform_pose_target.orientation * platform_anchors[i] - base_anchors[i]; 
         float effective_arm_length = effective_arm.norm();
 
         if (effective_arm_length > lower_arm_length + upper_arm_length)
         {
             std::cout << "Error: maximum effective arm length exceeded." << std::endl;
+            successful_calculation = false;
             break;
         }        
 
@@ -113,25 +121,34 @@ bool StewartPlatform::computeServoTargets()
         if (denominator < ZERO_TOL)  
         {
             std::cout << "Error: servo target calculation: denominator is zero." << std::endl;
+            successful_calculation = false;
             break;
         }
         else if (ratio < -1.0 || ratio > 1.0)
         {
             std::cout << "Error: servo target calculation: arcsin argument out of bounds. ";
             std::cout << "Argument = " << ratio << std::endl;
+            successful_calculation = false;
             break;
         }
         else if (std::abs(f) < ZERO_TOL && std::abs(e) < ZERO_TOL)
         {
             std::cout << "Error: servo target calculation: arctan2 argument(s) out of bounds." << std::endl;
+            successful_calculation = false;
             break;
-        };
+        }
 
         // compute servo rotation corresponding to effective arm length 
         servo_targets[i] = std::asin(ratio) - std::atan2(f, e);
     }
 
-    successful_calculation = true; 
-
     return successful_calculation;
+};
+
+// Implements the forward kinematics for the Stewart platform 
+bool StewartPlatform::computePlatformPosition()
+{   
+    
+
+    return false;
 };

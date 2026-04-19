@@ -2,7 +2,7 @@
     Defines a class for representing the Stewart platform. Supports calculation
     of motor angles required to achieve a desired platform pose. 
 
-    Also defines PlatformPose to represent this pose. 
+    Also defines a PlatformPose struct to represent this pose. 
 */
 
 #ifndef STEWARTPLATFORM_H
@@ -37,13 +37,21 @@ class StewartPlatform
         std::array<Vector3f, NUM_SERVOS> platform_anchors;  // Platform attachment points, in mm
 
         // Latest platform pose target 
-        PlatformPose platform_pose; 
+        PlatformPose platform_pose_target; 
 
-        // Required servo angles for the latest platform pose   
+        // The true pose of the platform per the position of the servo motors
+        PlatformPose platform_pose;
+
+        // Required servo angles for the latest platform pose target   
         std::array<float, NUM_SERVOS> servo_targets;
 
-        // Calculate the required servo angles to achieve the latest platform pose
+        // Calculate the required servo angles to achieve the latest platform pose.
+        // Implements the inverse kinematics of the Stewart platform. 
         bool computeServoTargets();
+
+        // Calculate the position of the platform using the true motor angles. 
+        // Implements the forward kinematics of the Stewart platform. 
+        bool computePlatformPosition();
     
     public: 
         StewartPlatform();

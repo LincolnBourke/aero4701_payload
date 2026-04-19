@@ -15,3 +15,4 @@ add_executable(payload
 
 target_include_directories(payload PRIVATE include)
 target_link_libraries(payload PRIVATE Eigen3::Eigen)
+target_compile_options(payload PRIVATE -Werror -Wall -Wextra)
