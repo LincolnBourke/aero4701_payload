@@ -5,7 +5,7 @@
 #include <Eigen/Dense>
 
 #define ZERO_TOL 1e-6   // Tolerance for floating point zero checking
-#define NR_TOL 1e-6     // Tolerance for Newton-Raphson solver 
+#define NR_TOL 1e-4     // Tolerance for Newton-Raphson solver 
 
 // ***** Stewart Platform Geometry *****
 
@@ -158,67 +158,91 @@ bool StewartPlatform::computeServoTargets()
 // Implements the forward kinematics for the Stewart platform 
 bool StewartPlatform::computePlatformPosition()
 {   
+    bool successful_calculation = false;
+
+    // TODO - REMOVE
+    // Test pose obtained from fixed motor positions
+    std::array<float, NUM_SERVOS> test_angle = {0.00635229, 0.00635229, 0.00635219, 0.00635228, 0.00635247, 0.00635228};
+
     // Get the roll, pitch, yaw of the last calculated platform pose.
     // (0, 1, 2) argument ordering extracts in order of [roll, pitch, yaw]
-    Vector3f euler_angles = platform_pose.orientation.toRotationMatrix().eulerAngles(0, 1, 2);
-
+    // Vector3f euler_angles = platform_pose.orientation.toRotationMatrix().eulerAngles(0, 1, 2);
+    
     // Initial guess for the platform pose - stored as [x, y, z, roll, pitch, yaw]
     Eigen::Matrix<float, NUM_SERVOS, 1> pose_guess; 
-    pose_guess << 
-        platform_pose.position[0],
-        platform_pose.position[1], 
-        platform_pose.position[2], 
-        euler_angles[0],
-        euler_angles[1], 
-        euler_angles[2];
-    
-    // Get the arm lengths from the servo angles 
+    // pose_guess << 
+    //     platform_pose.position[0],
+    //     platform_pose.position[1], 
+    //     platform_pose.position[2], 
+    //     euler_angles[0],
+    //     euler_angles[1], 
+    //     euler_angles[2];
 
-    // Iteratively solve for the platform pose using the Newton-Raphson method 
-    while (true)
+    pose_guess << 0.0f, 0.0f, 10.0f, 0.0f, 0.0f, 0.0f;
+    
+    // Get the lower arm vector positions
+    std::array<Vector3f, NUM_SERVOS> h; 
+    for (int i = 0; i < NUM_SERVOS; i++) 
+    {
+        // Angles of the servo horns when viewed from above 
+        float c_above = std::cos(servo_angular_pos[i]);
+        float s_above = std::sin(servo_angular_pos[i]);
+        
+        // Angles of the servo horns from the horizontal 
+        float c_hor = std::cos(test_angle[i]);
+        float s_hor = std::sin(test_angle[i]);
+
+        // Vector along the servo horn (starting from motor axis)
+        h[i] = lower_arm_length * Vector3f(c_above * c_hor, s_above * c_hor, s_hor);
+    }
+
+    // Iteratively solve for the platform pose using the Newton-Raphson method
+    // Stop at a maximum number of iterations or when the pose correction is sufficiently small
+    int max_iterations = 10000; 
+    for (int iters = 0; iters < max_iterations; iters++)
     {
         // System of equations to solve is A<pose correction vector> = b
         Eigen::Matrix<float, NUM_SERVOS, NUM_SERVOS> A;
         Eigen::Matrix<float, NUM_SERVOS, 1> b;
-
-        float c_roll = std::cos(euler_angles[0]);
-        float s_roll = std::sin(euler_angles[0]);
-        float c_pitch = std::cos(euler_angles[1]);
-        float s_pitch = std::sin(euler_angles[1]);
-        float c_yaw = std::cos(euler_angles[2]);
-        float s_yaw = std::sin(euler_angles[2]);
-
+        
+        float c_roll = std::cos(pose_guess[3]);
+        float s_roll = std::sin(pose_guess[3]);
+        float c_pitch = std::cos(pose_guess[4]);
+        float s_pitch = std::sin(pose_guess[4]);
+        float c_yaw = std::cos(pose_guess[5]);
+        float s_yaw = std::sin(pose_guess[5]);
+        
         // Compute the base to platform rotation matrix 
         Matrix3f rot_base_to_platform;
         rot_base_to_platform <<
             c_roll * c_pitch, c_roll * s_pitch * s_yaw - s_roll * c_yaw, c_roll * s_pitch * c_yaw + s_roll * s_yaw,
             s_roll * c_pitch, s_roll * s_pitch * s_yaw + c_roll * c_yaw, s_roll * s_pitch * c_yaw - c_roll * s_yaw,
             -s_pitch, c_pitch * s_yaw, c_pitch * c_yaw;
-
+        
         for (int i = 0; i < NUM_SERVOS; i++)
         {
             Vector3f platform_position(pose_guess[0], pose_guess[1], pose_guess[2]);
 
-            // Position of the platform origin relative to the base anchor point
+            // Position of the platform origin relative to the base anchor point (in base frame)
             Vector3f x = platform_position - base_anchors[i];
             
-            // 
-            Vector3f u = rot_base_to_platform * platform_anchors[i];
+            // Position of the platform anchor point relative to the platform origin (in base frame)
+            Vector3f p = rot_base_to_platform * platform_anchors[i];
 
-            // Compute the effective arm length for the current pose estimate
-            Vector3f effective_arm = x + platform_anchors[i];
-            float arm_length = effective_arm.norm();
-
-            // Define the equation to solve that gives the effective arm length for one arm
-            float f = std::pow(x(0) + u(0), 2) + std::pow(x(1) + u(1), 2) + std::pow(x(2) + u(2), 2) - std::pow(arm_length, 2); // = 0
+            // Define the equation to solve - minimising gives the platform pose
+            float f = (x + p - h[i]).squaredNorm() - upper_arm_length * upper_arm_length; // = 0
+            
+            float f_1 = x(0) + p(0) - h[i](0);
+            float f_2 = x(1) + p(1) - h[i](1);
+            float f_3 = x(2) + p(2) - h[i](2);
 
             // Compute the derivative of f with respect to each element of the platform pose estimate
-            A(i,0) = 2 * (x(0) + u(0));
-            A(i,1) = 2 * (x(1) + u(1));
-            A(i,2) = 2 * (x(2) + u(2));
-            A(i,3) = 2 * (-x(0) * u(1) + x(1) * u(0));
-            A(i,4) = 2 * ((-x(0) * c_roll + x(1) * s_roll) * u(2) - (platform_anchors[i](0) * c_pitch + platform_anchors[i](1) * s_pitch * s_yaw) * x(2));
-            A(i,5) = 2 * platform_anchors[i](1) * (x(0) * rot_base_to_platform(1,3) + x(1) * rot_base_to_platform(2,3) + x(2) * rot_base_to_platform(3,3));
+            A(i,0) = 2 * (x(0) + p(0) - h[i](0));
+            A(i,1) = 2 * (x(1) + p(1) - h[i](1));
+            A(i,2) = 2 * (x(2) + p(2) - h[i](2));
+            A(i,3) = 2 * (-x(0) * p(1) + x(1) * p(0) + h[i](0) * p(1) - h[i](1) * p(0));
+            A(i,4) = 2 * (f_1 * c_roll * p(2) + f_2 * s_roll * p(2) + f_3 * -(platform_anchors[i](0) * c_pitch + platform_anchors[i](1) * s_pitch * s_yaw));
+            A(i,5) = 2 * platform_anchors[i](1) * (f_1 * rot_base_to_platform(0,2) + f_2 * rot_base_to_platform(1,2) + f_3 * rot_base_to_platform(2,2));
 
             b(i) = -f; 
         }
@@ -229,27 +253,46 @@ bool StewartPlatform::computePlatformPosition()
             b_sum = b_sum + std::abs(b(i));
 
         if (b_sum < NR_TOL)
+        {
+            successful_calculation = true;
             break;
-        
+        }
+
         // Update the platform pose estimate
-        Eigen::Matrix<float, NUM_SERVOS, 1> pose_update = A.partialPivLu().solve(b);
+        Eigen::Matrix<float, NUM_SERVOS, 1> pose_update = A.fullPivLu().solve(b);
         pose_guess = pose_guess + pose_update;
+
+        // Break if the pose guess has become invalid
+        if (!pose_guess.allFinite())
+        {
+            std::cout << "Error: platform pose calculation contains NaN." << std::endl;
+            break;
+        }
 
         // Check if the magnitude of the update elements were below a threshold
         float update_sum = 0.0f;
         for (int i = 0; i < NUM_SERVOS; i++)
             update_sum = update_sum + std::abs(pose_update(i));
 
-        if (update_sum < NR_TOL)
+        if (update_sum < 1e-5)
+        {
+            successful_calculation = true;    
             break;
+        }
     }
 
     // Update the internal representation of the pose 
-    platform_pose.position = pose_guess.head(3);
-    platform_pose.orientation = 
-        Eigen::AngleAxisf(pose_guess(3), Vector3f::UnitX()) * 
-        Eigen::AngleAxisf(pose_guess(4), Vector3f::UnitY()) * 
-        Eigen::AngleAxisf(pose_guess(5), Vector3f::UnitZ());
+    if (successful_calculation)
+    {
+        platform_pose.position = pose_guess.head(3);
+        platform_pose.orientation = 
+            Eigen::AngleAxisf(pose_guess(3), Vector3f::UnitX()) * 
+            Eigen::AngleAxisf(pose_guess(4), Vector3f::UnitY()) * 
+            Eigen::AngleAxisf(pose_guess(5), Vector3f::UnitZ());
+    }
+    
+    std::cout << "Platform pose:" << std::endl;
+    std::cout << pose_guess.transpose() << std::endl;
 
-    return true;
+    return successful_calculation;
 };

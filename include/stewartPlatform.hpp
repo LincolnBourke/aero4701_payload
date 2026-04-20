@@ -53,10 +53,6 @@ class StewartPlatform
         // Calculate the required servo angles to achieve the latest platform pose.
         // Implements the inverse kinematics of the Stewart platform. 
         bool computeServoTargets();
-
-        // Calculate the position of the platform using the true motor angles. 
-        // Implements the forward kinematics of the Stewart platform. 
-        bool computePlatformPosition(std::array<float, NUM_SERVOS> angles);
     
     public: 
         StewartPlatform();
@@ -71,6 +67,10 @@ class StewartPlatform
 
         // Returns the current pose of the platform  
         const PlatformPose& getPlatformPose() const;
+
+        // Calculate the position of the platform using the true motor angles. 
+        // Implements the forward kinematics of the Stewart platform. 
+        bool computePlatformPosition();
 };
 
 #endif
