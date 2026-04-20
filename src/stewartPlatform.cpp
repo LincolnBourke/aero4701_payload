@@ -155,32 +155,29 @@ bool StewartPlatform::computeServoTargets()
     return successful_calculation;
 };
 
-// Implements the forward kinematics for the Stewart platform 
+/* Implements the forward kinematics for the Stewart platform.
+    Uses Newton-Raphson method and is sensitive to the initial condition.
+    Uses the last target pose of the stewart platform as the initial condition.
+*/  
 bool StewartPlatform::computePlatformPosition()
 {   
     bool successful_calculation = false;
 
-    // TODO - REMOVE
-    // Test pose obtained from fixed motor positions
-    std::array<float, NUM_SERVOS> test_angle = {0.00635229, 0.00635229, 0.00635219, 0.00635228, 0.00635247, 0.00635228};
-
-    // Get the roll, pitch, yaw of the last calculated platform pose.
+    // Get the roll, pitch, yaw of the last target platform pose.
     // (0, 1, 2) argument ordering extracts in order of [roll, pitch, yaw]
-    // Vector3f euler_angles = platform_pose.orientation.toRotationMatrix().eulerAngles(0, 1, 2);
+    Vector3f euler_angles = platform_pose_target.orientation.toRotationMatrix().eulerAngles(0, 1, 2);
     
     // Initial guess for the platform pose - stored as [x, y, z, roll, pitch, yaw]
     Eigen::Matrix<float, NUM_SERVOS, 1> pose_guess; 
-    // pose_guess << 
-    //     platform_pose.position[0],
-    //     platform_pose.position[1], 
-    //     platform_pose.position[2], 
-    //     euler_angles[0],
-    //     euler_angles[1], 
-    //     euler_angles[2];
-
-    pose_guess << 0.0f, 0.0f, 10.0f, 0.0f, 0.0f, 0.0f;
+    pose_guess << 
+        platform_pose_target.position[0],
+        platform_pose_target.position[1], 
+        platform_pose_target.position[2], 
+        euler_angles[0],
+        euler_angles[1], 
+        euler_angles[2];
     
-    // Get the lower arm vector positions
+    // Get the vector along each servo horn
     std::array<Vector3f, NUM_SERVOS> h; 
     for (int i = 0; i < NUM_SERVOS; i++) 
     {
@@ -189,8 +186,8 @@ bool StewartPlatform::computePlatformPosition()
         float s_above = std::sin(servo_angular_pos[i]);
         
         // Angles of the servo horns from the horizontal 
-        float c_hor = std::cos(test_angle[i]);
-        float s_hor = std::sin(test_angle[i]);
+        float c_hor = std::cos(servos[i].getAngle());
+        float s_hor = std::sin(servos[i].getAngle());
 
         // Vector along the servo horn (starting from motor axis)
         h[i] = lower_arm_length * Vector3f(c_above * c_hor, s_above * c_hor, s_hor);
@@ -289,10 +286,10 @@ bool StewartPlatform::computePlatformPosition()
             Eigen::AngleAxisf(pose_guess(3), Vector3f::UnitX()) * 
             Eigen::AngleAxisf(pose_guess(4), Vector3f::UnitY()) * 
             Eigen::AngleAxisf(pose_guess(5), Vector3f::UnitZ());
+
+        // Ensure the quaternion is normalised
+        platform_pose.orientation.normalize();
     }
-    
-    std::cout << "Platform pose:" << std::endl;
-    std::cout << pose_guess.transpose() << std::endl;
 
     return successful_calculation;
 };
