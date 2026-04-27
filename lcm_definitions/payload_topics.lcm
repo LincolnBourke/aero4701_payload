@@ -1,0 +1,43 @@
+package payload_topics;
+
+struct run_command
+{
+    int8_t command_id;
+}
+
+struct run_result
+{
+    int8_t return_id;
+}
+
+struct servo_targets
+{
+    float angles[6];
+}
+
+struct servo_angles
+{
+    float angles[6];
+}
+
+struct frame_pose_estimate
+{
+    float position[3];
+    float orientation[3];
+}
+
+struct event_pose_estimate
+{
+    float position[3];
+    float orientation[3];
+}
+
+struct camera_command
+{
+    int8_t command_id;
+}
+
+struct save_complete
+{
+    int8_t return_id;
+}

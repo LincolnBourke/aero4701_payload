@@ -9,17 +9,28 @@ Implements control code for the Stewart platform payload.
 <!-- - CMake 3.16 or higher -->
 - C++17 compatible compiler
 - Eigen3 (>= 3.3)
+- LCM
 
 Required packages can be installed with:
     
 ```sh
-sudo apt-get install libeigen3-dev
+sudo apt install libeigen3-dev liblcm-dev
 ```
 
 ## Build Instructions
-Create directory for build files and run cmake:
+In order to use the LCM topics, language specific bindings must be created. 
+Generate these for C++ and Python with,
 
 ```bash
+cd lcm_definitions
+lcm-gen -x payload_topics.lcm
+lcm-gen -p payload_topics.lcm
+```
+
+Then to build the project, navigate back to the top level directory, create a build directory and run cmake:
+
+```bash
+cd ..
 mkdir build
 cd build
 cmake ..
@@ -29,5 +40,5 @@ cmake --build .
 Run with:
 
 ```bash
-./aero4701_payload
+./payload
 ```
