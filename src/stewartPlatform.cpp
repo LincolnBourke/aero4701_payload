@@ -298,8 +298,9 @@ bool StewartPlatform::computePlatformPose()
     return successful_calculation;
 };
 
+/*** Stewart Platform Analyser methods ****************************************/
 
-void StewartPlatform::generatePointCloud(int num_points, std::string file_path)
+void StewartPlatformAnalyser::generatePointCloud(int num_points, std::string file_path)
 {
     std::vector<PlatformPose> point_cloud(num_points);
 
@@ -341,7 +342,7 @@ void StewartPlatform::generatePointCloud(int num_points, std::string file_path)
     savePointCloud(point_cloud, file_path);
 }
 
-void StewartPlatform::savePointCloud(std::vector<PlatformPose>& point_cloud, std::string file_path)
+void StewartPlatformAnalyser::savePointCloud(std::vector<PlatformPose>& point_cloud, std::string file_path)
 {
     std::ofstream file(file_path);
 
