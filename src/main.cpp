@@ -16,5 +16,5 @@ int main()
     // payload.printTrajectory();
 
     StewartPlatformAnalyser platform_analyser; 
-    platform_analyser.generatePointCloud(100, "../data/point_cloud2.csv");
+    platform_analyser.generatePointCloud("../data/point_cloud2.csv");
 }

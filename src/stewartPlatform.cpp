@@ -96,14 +96,14 @@ bool StewartPlatform::moveTo(PlatformPose* target_pose)
         platform_pose_target.orientation = target_pose->orientation;
         platform_pose_target.position[2] += (BASE_Z_OFFSET + PLATFORM_Z_OFFSET);
 
-        successful_calculation = computeServoTargets();
+        successful_calculation = computeServoTargets(true);
     }
 
     return successful_calculation;
 };
 
 // Implements the inverse kinematics for the Stewart platform
-bool StewartPlatform::computeServoTargets()
+bool StewartPlatform::computeServoTargets(bool print_errors)
 {
     bool successful_calculation = true;
 
@@ -116,7 +116,9 @@ bool StewartPlatform::computeServoTargets()
 
         if (effective_arm_length > lower_arm_length + upper_arm_length)
         {
-            std::cout << "Error: maximum effective arm length exceeded." << std::endl;
+            if (print_errors)
+                std::cout << "Error: maximum effective arm length exceeded." << std::endl;
+            
             successful_calculation = false;
             break;
         }        
@@ -134,26 +136,43 @@ bool StewartPlatform::computeServoTargets()
         // Error checking
         if (denominator < ZERO_TOL)  
         {
-            std::cout << "Error: servo target calculation: denominator is zero." << std::endl;
+            if (print_errors)
+                std::cout << "Error: servo target calculation: denominator is zero." << std::endl;
+            
             successful_calculation = false;
             break;
         }
         else if (ratio < -1.0 || ratio > 1.0)
         {
-            std::cout << "Error: servo target calculation: arcsin argument out of bounds. ";
-            std::cout << "Argument = " << ratio << std::endl;
+            if (print_errors)
+            {
+                std::cout << "Error: servo target calculation: arcsin argument out of bounds. ";
+                std::cout << "Argument = " << ratio << std::endl;
+            }
+            
             successful_calculation = false;
             break;
         }
         else if (std::abs(f) < ZERO_TOL && std::abs(e) < ZERO_TOL)
         {
-            std::cout << "Error: servo target calculation: arctan2 argument(s) out of bounds." << std::endl;
+            if (print_errors)
+                std::cout << "Error: servo target calculation: arctan2 argument(s) out of bounds." << std::endl;
+            
             successful_calculation = false;
             break;
         }
 
         // compute servo rotation corresponding to effective arm length 
-        servo_targets[i] = std::asin(ratio) - std::atan2(f, e);
+        float servo_target = std::asin(ratio) - std::atan2(f, e);
+
+        // Check if the servo angle is within the joint limits
+        if (servo_target > upper_servo_limits[i] || servo_target < lower_servo_limits[i])
+        {
+            successful_calculation = false; 
+            break;
+        }
+
+        servo_targets[i] = servo_target;
     }
 
     return successful_calculation;
@@ -300,46 +319,69 @@ bool StewartPlatform::computePlatformPose()
 
 /*** Stewart Platform Analyser methods ****************************************/
 
-void StewartPlatformAnalyser::generatePointCloud(int num_points, std::string file_path)
+void StewartPlatformAnalyser::generatePointCloud(std::string file_path)
 {
-    std::vector<PlatformPose> point_cloud(num_points);
+    std::vector<PlatformPose> point_cloud;
 
-    // Define a random number generator 
-    std::mt19937 rng(std::random_device{}());
+    // Define the range of each position parameter to iterate over
+    std::array<float, 2> p_x_range   = {-40.0f, 40.0f};
+    std::array<float, 2> p_y_range   = {-40.0f, 40.0f};
+    std::array<float, 2> p_z_range   = {0.0f, 50.0f};
 
-    // Define uniform distributions for each servo motor angle 
-    std::array<std::uniform_real_distribution<float>, NUM_SERVOS> dists; 
-    for (int i = 0; i < NUM_SERVOS; i++)
-    {
-        dists[i] = std::uniform_real_distribution<float>(lower_servo_limits[i], upper_servo_limits[i]);
-    }
+    // Define the position steps to search over 
+    float pos_step = 2;
 
-    // Set a position above the z = 0 plane for the initial pose guess 
-    platform_pose_target = PlatformPose({Vector3f{0, 0, 100}, Quaternionf::Identity()});
-
-    for (int i = 0; i < num_points; i++)
-    {
-        // Generate random angles for each servo within the range of their limits
-        for (int j = 0; j < NUM_SERVOS; j++)
-        {            
-            servos[j].setAngle(dists[j](rng));
-        }
-        
-        // Computing the pose updates the internal platform pose 
-        bool success = computePlatformPose();
-
-        if (!success)
-        {
-            // std::cout << "Failed to calculate a platform pose." << std::endl;
-            i -= 1;
-            continue;
-        }
-
-        point_cloud[i] = platform_pose;
-        point_cloud[i].position[2] -= BASE_Z_OFFSET + PLATFORM_Z_OFFSET;
-    }
-
+    // Perform a grid search through the parameters 
+    for (float x = p_x_range[0]; x <= p_x_range[1]; x += pos_step)
+        for (float y = p_y_range[0]; y <= p_y_range[1]; y += pos_step)
+            for (float z = p_z_range[0]; z <= p_z_range[1]; z += pos_step)
+                {
+                    // Construct a platform position from the parameters
+                    platform_pose_target.position = Vector3f(x, y, z);
+                    platform_pose_target.position[2] += (BASE_Z_OFFSET + PLATFORM_Z_OFFSET);
+                    
+                    // Search across the range of angles for a valid orientation
+                    bool success = searchAcrossOrientations();
+                    if (success)
+                    {
+                        platform_pose_target.position[2] -= (BASE_Z_OFFSET + PLATFORM_Z_OFFSET);
+                        point_cloud.push_back(platform_pose_target);
+                    }
+                }
+    
     savePointCloud(point_cloud, file_path);
+}
+
+bool StewartPlatformAnalyser::searchAcrossOrientations()
+{
+    // Define the range of each angle parameter to iterate over
+    std::array<float, 2> roll_range  = {-M_PI / 4, M_PI / 4};
+    std::array<float, 2> pitch_range = {-M_PI / 4, M_PI / 4};
+    std::array<float, 2> yaw_range   = {-M_PI / 4, M_PI / 4};
+
+    // Define the angle steps to search over 
+    float ang_step = M_PI / 8;
+
+    for (float roll = roll_range[0]; roll <= roll_range[1] + ZERO_TOL; roll += ang_step)
+        for (float pitch = pitch_range[0]; pitch <= pitch_range[1] + ZERO_TOL; pitch += ang_step)
+            for (float yaw = yaw_range[0]; yaw <= yaw_range[1] + ZERO_TOL; yaw += ang_step)
+                {
+                    // Construct a platform orientation from the parameters
+                    Eigen::AngleAxisf rollAngle(roll,   Eigen::Vector3f::UnitX());
+                    Eigen::AngleAxisf pitchAngle(pitch, Eigen::Vector3f::UnitY());
+                    Eigen::AngleAxisf yawAngle(yaw,     Eigen::Vector3f::UnitZ());
+                    
+                    platform_pose_target.orientation = yawAngle * pitchAngle * rollAngle;
+                    
+                    // Check whether the platform pose can be achieved 
+                    bool success = computeServoTargets(false);
+                    if (success)
+                    {
+                        return true;
+                    }
+                }
+    
+    return false;
 }
 
 void StewartPlatformAnalyser::savePointCloud(std::vector<PlatformPose>& point_cloud, std::string file_path)
