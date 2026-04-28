@@ -2,6 +2,9 @@
     Defines a class for representing the servo motors of the Stewart platform.
 */
 
+#ifndef SERVOMOTOR_H
+#define SERVOMOTOR_H
+
 class ServoMotor
 {
     private: 
@@ -18,3 +21,5 @@ class ServoMotor
         // Used solely for testing, the angle should be set by motor feedback
         void setAngle(float angle);
 };
+
+#endif
