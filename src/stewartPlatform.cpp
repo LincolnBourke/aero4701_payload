@@ -1,11 +1,13 @@
 #include "stewartPlatform.hpp"
 
 #include <iostream>
+#include <fstream>
 #include <cmath>
 #include <Eigen/Dense>
+#include <random>
 
 #define ZERO_TOL 1e-6   // Tolerance for floating point zero checking
-#define NR_TOL 1e-4     // Tolerance for Newton-Raphson solver 
+#define NR_TOL 1e-5     // Tolerance for Newton-Raphson solver 
 
 // ***** Stewart Platform Geometry *****
 
@@ -35,7 +37,9 @@ StewartPlatform::StewartPlatform()
     platform_pose_target{Vector3f::Zero(), Quaternionf::Identity()},
     platform_pose{Vector3f::Zero(), Quaternionf::Identity()},
     servo_targets{0},
-    servos{ServoMotor()}
+    servos{ServoMotor()},
+    upper_servo_limits{M_PI / 2, M_PI / 2, M_PI / 2, M_PI / 2, M_PI / 2, M_PI / 2},
+    lower_servo_limits{-M_PI / 4, -M_PI / 4, -M_PI / 4, -M_PI / 4, -M_PI / 4, -M_PI / 4}
 {
     // Calculate anchor point positions as vectors 
     for (int i = 0; i < NUM_SERVOS; i += 2)
@@ -159,7 +163,7 @@ bool StewartPlatform::computeServoTargets()
     Uses Newton-Raphson method and is sensitive to the initial condition.
     Uses the last target pose of the stewart platform as the initial condition.
 */  
-bool StewartPlatform::computePlatformPosition()
+bool StewartPlatform::computePlatformPose()
 {   
     bool successful_calculation = false;
 
@@ -195,7 +199,7 @@ bool StewartPlatform::computePlatformPosition()
 
     // Iteratively solve for the platform pose using the Newton-Raphson method
     // Stop at a maximum number of iterations or when the pose correction is sufficiently small
-    int max_iterations = 10000; 
+    int max_iterations = 500; 
     for (int iters = 0; iters < max_iterations; iters++)
     {
         // System of equations to solve is A<pose correction vector> = b
@@ -249,11 +253,11 @@ bool StewartPlatform::computePlatformPosition()
         for (int i = 0; i < NUM_SERVOS; i++)
             b_sum = b_sum + std::abs(b(i));
 
-        if (b_sum < NR_TOL)
-        {
-            successful_calculation = true;
-            break;
-        }
+        // if (b_sum < NR_TOL)
+        // {
+        //     successful_calculation = true;
+        //     break;
+        // }
 
         // Update the platform pose estimate
         Eigen::Matrix<float, NUM_SERVOS, 1> pose_update = A.fullPivLu().solve(b);
@@ -271,7 +275,7 @@ bool StewartPlatform::computePlatformPosition()
         for (int i = 0; i < NUM_SERVOS; i++)
             update_sum = update_sum + std::abs(pose_update(i));
 
-        if (update_sum < 1e-5)
+        if (update_sum < NR_TOL)
         {
             successful_calculation = true;    
             break;
@@ -293,3 +297,70 @@ bool StewartPlatform::computePlatformPosition()
 
     return successful_calculation;
 };
+
+
+void StewartPlatform::generatePointCloud(int num_points, std::string file_path)
+{
+    std::vector<PlatformPose> point_cloud(num_points);
+
+    // Define a random number generator 
+    std::mt19937 rng(std::random_device{}());
+
+    // Define uniform distributions for each servo motor angle 
+    std::array<std::uniform_real_distribution<float>, NUM_SERVOS> dists; 
+    for (int i = 0; i < NUM_SERVOS; i++)
+    {
+        dists[i] = std::uniform_real_distribution<float>(lower_servo_limits[i], upper_servo_limits[i]);
+    }
+
+    // Set a position above the z = 0 plane for the initial pose guess 
+    platform_pose_target = PlatformPose({Vector3f{0, 0, 100}, Quaternionf::Identity()});
+
+    for (int i = 0; i < num_points; i++)
+    {
+        // Generate random angles for each servo within the range of their limits
+        for (int j = 0; j < NUM_SERVOS; j++)
+        {            
+            servos[j].setAngle(dists[j](rng));
+        }
+        
+        // Computing the pose updates the internal platform pose 
+        bool success = computePlatformPose();
+
+        if (!success)
+        {
+            // std::cout << "Failed to calculate a platform pose." << std::endl;
+            i -= 1;
+            continue;
+        }
+
+        point_cloud[i] = platform_pose;
+        point_cloud[i].position[2] -= BASE_Z_OFFSET + PLATFORM_Z_OFFSET;
+    }
+
+    savePointCloud(point_cloud, file_path);
+}
+
+void StewartPlatform::savePointCloud(std::vector<PlatformPose>& point_cloud, std::string file_path)
+{
+    std::ofstream file(file_path);
+
+    if (!file.is_open())
+    {
+        std::cout << "Failed to open file for writing: " << file_path << std::endl;
+        return;
+    }
+
+    for (const auto& pose : point_cloud)
+    {
+        file << pose.position.x() << ","
+             << pose.position.y() << ","
+             << pose.position.z() << ","
+             << pose.orientation.x() << ","
+             << pose.orientation.y() << ","
+             << pose.orientation.z() << ","
+             << pose.orientation.w() << "\n";
+    }
+
+    file.close();
+}

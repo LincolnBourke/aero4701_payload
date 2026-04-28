@@ -15,5 +15,5 @@ float ServoMotor::getAngle()
 
 void ServoMotor::setAngle(float angle)
 {
-    angle = angle;
+    this->angle = angle;
 }
