@@ -172,11 +172,46 @@ bool StewartPlatform::computeServoTargets(bool print_errors)
             break;
         }
 
+        // 
+        if (computeAngularSkew(i) > (15.0f * M_PI / 180))
+        {
+            successful_calculation = false; 
+            break;
+        }
+
         servo_targets[i] = servo_target;
     }
 
     return successful_calculation;
 };
+
+float StewartPlatform::computeAngularSkew(int servo_num)
+{
+    // Angles of the servo horns when viewed from above 
+    float c_above = std::cos(servo_angular_pos[servo_num]);
+    float s_above = std::sin(servo_angular_pos[servo_num]);
+    
+    // Angles of the servo horns from the horizontal 
+    float c_hor = std::cos(servos[servo_num].getAngle());
+    float s_hor = std::sin(servos[servo_num].getAngle());
+
+    // Vector along the servo horn (starting from motor axis)
+    Vector3f bottom_arm = lower_arm_length * Vector3f(c_above * c_hor, s_above * c_hor, s_hor);
+
+    // Get the vector along the top arm
+    Vector3f effective_arm = platform_pose_target.position + platform_pose_target.orientation * platform_anchors[servo_num] - base_anchors[servo_num];
+    Vector3f top_arm = effective_arm - bottom_arm;
+
+    // Compute the vector normal to the plane 
+    Vector3f normal = Vector3f{c_above, s_above, 0};
+    Eigen::AngleAxisf rotation(-M_PI/2, Eigen::Vector3f::UnitZ()); // Rotation about the z-axis
+    normal = rotation * normal;
+
+    // Angle between top arm and normal 
+    float ang = std::asin(std::abs(top_arm.dot(normal)) / (top_arm.norm() * normal.norm()));
+
+    return ang;
+}
 
 /* Implements the forward kinematics for the Stewart platform.
     Uses Newton-Raphson method and is sensitive to the initial condition.
