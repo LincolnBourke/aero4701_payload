@@ -68,6 +68,11 @@ class StewartPlatform
         // Move the platform to a target pose 
         bool moveTo(PlatformPose* target_pose);
 
+        // Compute the servo angles required for a target pose without updating
+        // the internal state of the Stewart platform. 
+        // Return value indicates success of the calculation.
+        bool getAnglesForMove(PlatformPose target_pose, std::array<float, NUM_SERVOS>* angles);
+
         // Returns an array of the servo motor angles required to achieve the 
         // last target platform pose set with moveTo()
         const std::array<float, NUM_SERVOS>& getServoTargets() const;

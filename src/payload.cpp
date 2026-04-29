@@ -5,8 +5,13 @@
 #include <sstream>
 
 Payload::Payload()
+    : platform()
 {
     trajectory_path = "../data/trajectory.csv";
+
+    // Initialise empty trajectory 
+    trajectory = std::vector<PlatformPose>();
+    trajectory_angles = std::vector<std::array<float, NUM_SERVOS>>();
 };
 
 Payload::~Payload(){};
@@ -64,6 +69,36 @@ bool Payload::readTrajectory()
     return read_success;
 };
 
+bool Payload::writeAnglesToFile(std::string file_path)
+{
+    bool write_success = true;
+    std::ofstream file(file_path);
+
+    // Check the file could be opened/created
+    if (!file.is_open())
+    {
+        std::cout << "Error: could not open file for writing: " << file_path << std::endl;
+        write_success = false;
+    }
+    else
+    {   
+        // Write the angles to the file 
+        for (const auto& angles : trajectory_angles)
+        {
+            for (size_t i = 0; i < NUM_SERVOS-1; i++)
+            {
+                file << angles[i] << ",";
+            }
+
+            file << angles[NUM_SERVOS-1] << "\n";
+        }
+
+        file.close();
+    }
+   
+    return write_success;
+}
+
 void Payload::printTrajectory()
 {
     for (const PlatformPose& pose : trajectory)
@@ -78,3 +113,40 @@ void Payload::printTrajectory()
                 << pose.orientation.z() << "k" << std::endl;
     }
 };
+
+bool Payload::computeTrajectoryAngles()
+{
+    bool success = true; 
+    std::array<float, NUM_SERVOS> angles; 
+
+    // Pre-allocate memory for the angles 
+    trajectory_angles.resize(trajectory.size());
+
+    // Iterate through poses in the trajectory and calculate the required servo angles
+    for (size_t i = 0; i < trajectory.size(); i++)
+    {
+        // Calculate the servo angles 
+        if (!platform.getAnglesForMove(trajectory[i], &angles))
+        {
+            success = false; 
+            break;
+        }
+
+        trajectory_angles[i] = angles;
+    }   
+    
+    return success;
+}
+
+bool Payload::generateTrajectoryAnglesFile(std::string file_path)
+{   
+    bool success = false; 
+
+    if (readTrajectory())
+        if (computeTrajectoryAngles())
+            if (writeAnglesToFile(file_path))
+                success = true; 
+    
+    return success; 
+}
+

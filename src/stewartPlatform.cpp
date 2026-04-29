@@ -102,6 +102,42 @@ bool StewartPlatform::moveTo(PlatformPose* target_pose)
     return successful_calculation;
 };
 
+bool StewartPlatform::getAnglesForMove(PlatformPose target_pose, std::array<float, NUM_SERVOS>* angles)
+{
+    bool successful_calculation = true;
+    
+    // Store the current pose and servo targets to restore them at the end 
+    PlatformPose saved_pose_target = platform_pose_target;
+    std::array<float, NUM_SERVOS> saved_servo_targets = servo_targets;
+
+    // Check platform does not intersect servo brace 
+    if (target_pose.position[2] < 0)
+    {
+        std::cout << "Error: platform target z position must be > 0." << std::endl;
+        successful_calculation = false;
+    }
+    else 
+    {
+        // Set the new pose target
+        platform_pose_target.position = target_pose.position;
+        platform_pose_target.orientation = target_pose.orientation;
+        platform_pose_target.position[2] += (BASE_Z_OFFSET + PLATFORM_Z_OFFSET);
+
+        // Compute servo targets into the internal servo_targets array
+        successful_calculation = computeServoTargets(true);
+
+        // Copy out the computed angles if successful
+        if (successful_calculation && angles != nullptr)
+            *angles = servo_targets;
+    }
+
+    // Restore the previous pose and servo targets so internal state is unchanged
+    platform_pose_target = saved_pose_target;
+    servo_targets = saved_servo_targets;
+
+    return successful_calculation;
+}
+
 // Implements the inverse kinematics for the Stewart platform
 bool StewartPlatform::computeServoTargets(bool print_errors)
 {
