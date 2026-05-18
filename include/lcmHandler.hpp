@@ -1,28 +1,34 @@
+/*
+Handles LCM messaging for the payload controller node. 
+*/
+
+#ifndef LCMHANDLER_H
+#define LCMHANDLER_H
+
+#include "run_command.hpp"
+
 #include <lcm/lcm-cpp.hpp>
-#include "exlcm/example_t.hpp"
+#include <string.h>
 
-class Handler 
+
+class LcmHandler 
 {
-    public:
-        ~Handler() {}
+    private: 
+        // Store the latest messages until they are read 
+        payload_messages::run_command last_run_command_msg;
+        bool run_command_received;
 
-        void handleMessage(const lcm::ReceiveBuffer* rbuf,
-                const std::string& chan, 
-                const exlcm::example_t* msg)
-        {
-            int i;
-            printf("Received message on channel \"%s\":\n", chan.c_str());
-            printf("  timestamp   = %lld\n", (long long)msg->timestamp);
-            printf("  position    = (%f, %f, %f)\n",
-                    msg->position[0], msg->position[1], msg->position[2]);
-            printf("  orientation = (%f, %f, %f, %f)\n",
-                    msg->orientation[0], msg->orientation[1], 
-                    msg->orientation[2], msg->orientation[3]);
-            printf("  ranges:");
-            for(i = 0; i < msg->num_ranges; i++)
-                printf(" %d", msg->ranges[i]);
-            printf("\n");
-            printf("  name        = '%s'\n", msg->name.c_str());
-            printf("  enabled     = %d\n", msg->enabled);
-        }
+    public:
+        LcmHandler();
+        ~LcmHandler();
+
+        // Message handling functions
+        void handleRunCommand(const lcm::ReceiveBuffer* rbuf, 
+            const std::string& channel,
+            const payload_messages::run_command* msg);
+        
+        // Returns true if a run command was received and stores the message id
+        bool checkRunCommand(int& command_id);
 };
+
+#endif

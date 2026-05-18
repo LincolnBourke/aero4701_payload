@@ -1,4 +1,5 @@
 #include "payload.hpp"
+#include "commands.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -15,44 +16,69 @@ typedef enum State {
 } state_t;
 
 Payload::Payload()
-    : platform()
+    : lcm(), lcm_handler(), platform() 
 {
     trajectory_path = "../data/trajectory.csv";
 
     // Initialise empty trajectory 
     trajectory = std::vector<PlatformPose>();
     trajectory_angles = std::vector<std::array<float, NUM_SERVOS>>();
+
+    if (!lcm.good())
+    {
+        std::cout << "[ERROR] LCM object could not be created." << std::endl;
+    }
+
+    // Subscribe lcm handler to messages
+    lcm.subscribe("RUN_COMMAND", &LcmHandler::handleRunCommand, &lcm_handler);
 };
 
 Payload::~Payload(){};
 
 
-bool Payload::run()
+void Payload::run()
 {
     state_t state = IDLE;
+    int command_id;
     
-    switch (state)
+    while (true)
     {
-        case IDLE:
+        switch (state)
+        {
+            case IDLE:
+                // Check if a command has been published
+                if (lcm.getFileno() >= 0)
+                {
+                    lcm.handle();
 
-            break; 
-        case SETUP: 
+                    // Check if a run command has been published
+                    if (lcm_handler.checkRunCommand(command_id))
+                    {   
+                        // Only move to setup when start command received
+                        if (command_id == Commands::RunId::START)
+                            state = SETUP;
+                    }
+                }
 
-            break; 
-        case DEPLOY: 
+                break; 
+            case SETUP: 
 
-            break;
-        case RUNNING: 
+                break; 
+            case DEPLOY: 
 
-            break;
-        case SAVE_RESULTS: 
+                break;
+            case RUNNING: 
 
-            break;
-        case ERROR: 
+                break;
+            case SAVE_RESULTS: 
 
-            break;
-        default: 
-            std::cout << "[ERROR] Payload controller entered invalid state." << std::endl;
+                break;
+            case ERROR: 
+
+                break;
+            default: 
+                std::cout << "[ERROR] Payload controller entered invalid state." << std::endl;
+        }
     }
 }
 

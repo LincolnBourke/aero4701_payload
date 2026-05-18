@@ -1,0 +1,6 @@
+package payload_messages;
+
+struct run_command
+{
+    int8_t command_id;
+}

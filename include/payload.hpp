@@ -6,13 +6,18 @@
 #define PAYLOAD_H
 
 #include "stewartPlatform.hpp"
+#include "lcmHandler.hpp"
 
+#include <lcm/lcm-cpp.hpp>
 #include <string>
 #include <vector>
 
 class Payload
 {
     private: 
+        lcm::LCM lcm;
+        LcmHandler lcm_handler;
+
         StewartPlatform platform;
 
         // Relative location of the trajectory csv 
@@ -37,7 +42,7 @@ class Payload
         ~Payload();
 
         // Run the main event loop 
-        bool run(); 
+        void run(); 
 
         // Read the trajectory from the file and store in memory
         // Return value indicates if the file was found 

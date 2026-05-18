@@ -12,7 +12,9 @@ using Eigen::Quaternionf;
 int main() 
 {
     Payload payload; 
-    payload.generateTrajectoryAnglesFile("../data/angles.csv");
+    payload.run();
+
+    // payload.generateTrajectoryAnglesFile("../data/angles.csv");
     
     // payload.readTrajectory();
     // payload.printTrajectory();
