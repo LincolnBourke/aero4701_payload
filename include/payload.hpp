@@ -36,6 +36,9 @@ class Payload
         Payload();
         ~Payload();
 
+        // Run the main event loop 
+        bool run(); 
+
         // Read the trajectory from the file and store in memory
         // Return value indicates if the file was found 
         bool readTrajectory();

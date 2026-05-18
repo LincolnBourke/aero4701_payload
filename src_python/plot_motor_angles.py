@@ -15,9 +15,9 @@ CSV formats
 angles.csv  : each row has 6 comma-separated servo angles (radians)
               e.g.  0.1, -0.2, 0.3, 0.1, -0.1, 0.2
 
-pose.csv    : each row has 7 comma-separated values
-              pos_x, pos_y, pos_z, quat_x, quat_y, quat_z, quat_w
-              e.g.  0, 0, 12.5, 0, 0, 0, 1
+pose.csv    : each row has 6 comma-separated values
+              px, py, pz, roll, pitch, yaw  (positions in mm, angles in degrees)
+              e.g.  0, 0, 12.5, 0, 0, 0
 """
 
 import argparse
@@ -132,7 +132,7 @@ def hexagon_verts(points):
 
 # ── 1. Servo angles plot ──────────────────────────────────────────────────────
 
-def plot_servo_angles(angles: np.ndarray, out_path="servo_angles.png"):
+def plot_servo_angles(angles: np.ndarray, out_path="servo_angles"):
     n_frames = len(angles)
     time = np.arange(n_frames)
 
@@ -144,28 +144,24 @@ def plot_servo_angles(angles: np.ndarray, out_path="servo_angles.png"):
 
     ax.set_xlabel("Frame")
     ax.set_ylabel("Angle (°)")
-    ax.set_title("Servo Angles over Trajectory")
+    # ax.set_title("Servo Angles over Trajectory")
     ax.legend(ncol=3, fontsize=9)
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
-    fig.savefig(out_path, dpi=150)
+    fig.savefig(out_path + '.svg', dpi=250)
     plt.close(fig)
     print(f"Saved {out_path}")
 
 
 # ── 2. Platform pose plot ─────────────────────────────────────────────────────
 
-def plot_platform_pose(pose: np.ndarray, out_path="platform_pose.png"):
-    """pose has shape (N, 7): px py pz qx qy qz qw"""
+def plot_platform_pose(pose: np.ndarray, out_path="platform_pose"):
+    """pose has shape (N, 6): px py pz roll pitch yaw"""
     n_frames = len(pose)
     time = np.arange(n_frames)
 
     positions = pose[:, :3]
-    quats     = pose[:, 3:]          # x y z w
-
-    # Convert to Euler angles (intrinsic ZYX → yaw, pitch, roll → reorder)
-    rot = Rotation.from_quat(quats)  # scipy [x,y,z,w]
-    euler_deg = rot.as_euler("xyz", degrees=True)   # roll, pitch, yaw
+    euler_deg = pose[:, 3:]   # roll, pitch, yaw — already in degrees
 
     fig, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
 
@@ -189,7 +185,7 @@ def plot_platform_pose(pose: np.ndarray, out_path="platform_pose.png"):
     ax.grid(True, alpha=0.3)
 
     fig.tight_layout()
-    fig.savefig(out_path, dpi=150)
+    fig.savefig(out_path + '.svg', dpi=250)
     plt.close(fig)
     print(f"Saved {out_path}")
 
@@ -236,9 +232,9 @@ def make_gif(angles: np.ndarray, pose: np.ndarray, out_path="stewart_motion.gif"
 
     def update(frame):
         pos        = pose[frame, :3]
-        quat_xyzw  = pose[frame, 3:]
         servo_angs = angles[frame]
 
+        quat_xyzw = Rotation.from_euler("xyz", np.radians(pose[frame, 3:])).as_quat()
         plat_world, elbows = compute_platform_geometry_with_angles(pos, quat_xyzw, servo_angs)
 
         # Draw lower arms (base anchor → elbow)
@@ -257,12 +253,16 @@ def make_gif(angles: np.ndarray, pose: np.ndarray, out_path="stewart_motion.gif"
             upper_lines[i].set_data(xs, ys)
             upper_lines[i].set_3d_properties(zs)
 
-        # Redraw platform polygon
+        # Redraw platform polygon — use fixed geometric vertex order, not 2D
+        # angle sort, which breaks when the platform is tilted
         if plat_poly[0] is not None:
             plat_poly[0].remove()
-        verts_2d = hexagon_verts(plat_world)
+        # Anchors are built in pairs around the hexagon; sorting by the angle
+        # of their local (untilted) positions gives a stable winding order
+        local_angles = np.arctan2(PLAT_ANCHORS_LOCAL[:, 1], PLAT_ANCHORS_LOCAL[:, 0])
+        ordered_idx  = np.argsort(local_angles)
         poly = Poly3DCollection(
-            [verts_2d],
+            [plat_world[ordered_idx]],
             alpha=0.25, facecolor="steelblue", edgecolor="navy", linewidth=1
         )
         ax.add_collection3d(poly)
@@ -294,7 +294,7 @@ def main():
     parser.add_argument("--angles", required=True,
                         help="Path to servo angles CSV (6 columns, radians)")
     parser.add_argument("--pose",   required=True,
-                        help="Path to platform pose CSV (7 columns: px py pz qx qy qz qw)")
+                        help="Path to platform pose CSV (6 columns: px py pz roll pitch yaw, angles in degrees)")
     parser.add_argument("--fps",    type=int, default=15,
                         help="Frames per second for the GIF (default: 15)")
     args = parser.parse_args()
@@ -309,14 +309,16 @@ def main():
 
     assert angles.shape[1] == NUM_SERVOS, \
         f"Expected {NUM_SERVOS} angle columns, got {angles.shape[1]}"
-    assert pose.shape[1] == 7, \
-        f"Expected 7 pose columns, got {pose.shape[1]}"
+    assert pose.shape[1] == 6, \
+        f"Expected 6 pose columns (px py pz roll pitch yaw), got {pose.shape[1]}"
     assert len(angles) == len(pose), \
         "angles and pose CSVs must have the same number of rows"
 
-    plot_servo_angles(angles)
-    plot_platform_pose(pose)
-    make_gif(angles, pose, fps=args.fps)
+    save_directory = '../data/'
+
+    plot_servo_angles(angles, out_path=save_directory+"servo_angles")
+    plot_platform_pose(pose, out_path=save_directory+"platform_pose")
+    make_gif(angles, pose, out_path=save_directory+"stewart_motion.gif", fps=args.fps)
 
 
 if __name__ == "__main__":

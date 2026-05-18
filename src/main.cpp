@@ -13,6 +13,7 @@ int main()
 {
     Payload payload; 
     payload.generateTrajectoryAnglesFile("../data/angles.csv");
+    
     // payload.readTrajectory();
     // payload.printTrajectory();
 

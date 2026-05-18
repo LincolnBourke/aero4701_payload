@@ -203,7 +203,10 @@ bool StewartPlatform::computeServoTargets(bool print_errors)
 
         // Check if the servo angle is within the joint limits
         if (servo_target > upper_servo_limits[i] || servo_target < lower_servo_limits[i])
-        {
+        {   
+            if (print_errors)
+                std::cout << "Error: joint limits exceeded." << std::endl; 
+
             successful_calculation = false; 
             break;
         }
@@ -211,6 +214,9 @@ bool StewartPlatform::computeServoTargets(bool print_errors)
         // 
         if (computeAngularSkew(i) > (15.0f * M_PI / 180))
         {
+            if (print_errors)
+                std::cout << "Error: Angular skew exceeded." << std::endl;
+            
             successful_calculation = false; 
             break;
         }
