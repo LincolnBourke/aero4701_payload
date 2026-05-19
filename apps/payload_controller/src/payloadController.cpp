@@ -1,4 +1,4 @@
-#include "payload.hpp"
+#include "payloadController.hpp"
 #include "commands.hpp"
 
 #include <iostream>
@@ -20,7 +20,7 @@ typedef enum State {
 } state_t;
 
 
-Payload::Payload()
+PayloadController::PayloadController()
     : lcm(), lcm_handler(), error(), platform(), trajectory_step(0), experiment_start_time()
 {
     trajectory_path = "../data/trajectory_simple.csv";
@@ -35,9 +35,9 @@ Payload::Payload()
     lcm.subscribe("SAVE_COMPLETE", &LcmHandler::handleSaveComplete, &lcm_handler);
 };
 
-Payload::~Payload(){};
+PayloadController::~PayloadController(){};
 
-void Payload::run()
+void PayloadController::run()
 {
     state_t state = IDLE;
     int command_id;
@@ -197,7 +197,7 @@ void Payload::run()
 
 // --- Trajectory tracking -----------------------------------------------------
 
-bool Payload::deployPlatformStep(bool &platform_deployed)
+bool PayloadController::deployPlatformStep(bool &platform_deployed)
 {
     // TODO: current set to move past successfully
     platform_deployed = true;
@@ -205,7 +205,7 @@ bool Payload::deployPlatformStep(bool &platform_deployed)
     return true; 
 }
 
-bool Payload::trackTrajectoryStep(bool &trajectory_complete)
+bool PayloadController::trackTrajectoryStep(bool &trajectory_complete)
 {
     trajectory_complete = false;
 
@@ -234,13 +234,13 @@ bool Payload::trackTrajectoryStep(bool &trajectory_complete)
     return true; 
 }
 
-bool Payload::retractPlatform()
+bool PayloadController::retractPlatform()
 {
     // TODO
     return false;
 }
 
-bool Payload::waitForSaveComplete()
+bool PayloadController::waitForSaveComplete()
 {
     bool result = false;
     int return_id;
@@ -267,7 +267,7 @@ bool Payload::waitForSaveComplete()
 
 // --- File i/o ----------------------------------------------------------------
 
-bool Payload::readRawPoses(std::vector<PlatformPose>& raw_poses)
+bool PayloadController::readRawPoses(std::vector<PlatformPose>& raw_poses)
 {
     bool result = true;
     std::ifstream file(trajectory_path);
@@ -322,7 +322,7 @@ bool Payload::readRawPoses(std::vector<PlatformPose>& raw_poses)
     return result;
 }
 
-bool Payload::writeAnglesToFile(std::string file_path)
+bool PayloadController::writeAnglesToFile(std::string file_path)
 {
     bool result = true;
     std::ofstream file(file_path);
@@ -354,7 +354,7 @@ bool Payload::writeAnglesToFile(std::string file_path)
 
 // --- Trajectory building -----------------------------------------------------
 
-bool Payload::interpolateTrajectory(const std::vector<PlatformPose>& raw_poses, trajectory_t& out)
+bool PayloadController::interpolateTrajectory(const std::vector<PlatformPose>& raw_poses, trajectory_t& out)
 {
     // Require at least two poses to interpolate between
     if (raw_poses.size() < 2)
@@ -390,7 +390,7 @@ bool Payload::interpolateTrajectory(const std::vector<PlatformPose>& raw_poses, 
     return true;
 }
 
-bool Payload::computeTrajectoryAngles(trajectory_t& traj)
+bool PayloadController::computeTrajectoryAngles(trajectory_t& traj)
 {
     bool result = true;
     std::array<float, NUM_SERVOS> angles;
@@ -413,7 +413,7 @@ bool Payload::computeTrajectoryAngles(trajectory_t& traj)
     return result;
 }
 
-bool Payload::buildTrajectory()
+bool PayloadController::buildTrajectory()
 {
     trajectory_t temp;
     std::vector<PlatformPose> raw_poses;
@@ -446,7 +446,7 @@ bool Payload::buildTrajectory()
 
 // --- Trajectory debugging ----------------------------------------------------
 
-bool Payload::generateTrajectoryAnglesFile(std::string file_path)
+bool PayloadController::generateTrajectoryAnglesFile(std::string file_path)
 {
     bool result = true;
 
@@ -470,7 +470,7 @@ bool Payload::generateTrajectoryAnglesFile(std::string file_path)
     return result;
 }
 
-void Payload::printTrajectory()
+void PayloadController::printTrajectory()
 {
     for (size_t i = 0; i < trajectory.poses.size(); i++)
     {
@@ -502,7 +502,7 @@ void Payload::printTrajectory()
 
 // --- LCM publisher methods ---------------------------------------------------
 
-void Payload::publishCameraCommand(int8_t command_id)
+void PayloadController::publishCameraCommand(int8_t command_id)
 {
     payload_messages::camera_command_t msg;
     msg.command_id = command_id;
@@ -510,7 +510,7 @@ void Payload::publishCameraCommand(int8_t command_id)
     lcm.publish("CAMERA_COMMAND", &msg);
 }
 
-void Payload::publishRunResult(int8_t return_id)
+void PayloadController::publishRunResult(int8_t return_id)
 {
     payload_messages::run_result_t msg;
     msg.return_id = return_id;

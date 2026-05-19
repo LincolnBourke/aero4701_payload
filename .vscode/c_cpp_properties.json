@@ -3,10 +3,9 @@
         {
             "name": "Linux",
             "includePath": [
-                "${workspaceFolder}/include",
+                "${workspaceFolder}/apps/payload_controller/include",
                 "${workspaceFolder}/lcm_messages",
                 "${workspaceFolder}/lcm_messages/payload_messages",
-                "${workspaceFolder}/tests",
                 "/usr/include",
                 "/usr/include/eigen3"
             ],

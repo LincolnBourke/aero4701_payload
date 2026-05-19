@@ -2,8 +2,8 @@
     Defines the top level class for the payload application. 
 */
 
-#ifndef PAYLOAD_H
-#define PAYLOAD_H
+#ifndef PAYLOAD_CONTROLLER_H
+#define PAYLOAD_CONTROLLER_H
 
 #include "stewartPlatform.hpp"
 #include "lcmHandler.hpp"
@@ -27,16 +27,16 @@ typedef struct {
     std::string msg; // Error message 
 } payload_error_t;
 
-class Payload
+class PayloadController
 {
-    private: 
-        // LCM interface 
+    private:
+        // LCM interface
         lcm::LCM lcm;
         LcmHandler lcm_handler;
 
         // Error processed by the ERROR state
         payload_error_t error;
-        
+
         StewartPlatform platform;
 
         // Relative path to the trajectory csv file
@@ -45,7 +45,7 @@ class Payload
         // The fully interpolated trajectory for the platform to track
         trajectory_t trajectory;
 
-        // The step number which trackTrajectoryStep is up to 
+        // The step number which trackTrajectoryStep is up to
         std::vector<float>::size_type trajectory_step;
 
         // The time for which the experiment has been running
@@ -85,14 +85,14 @@ class Payload
         // Block until a save_complete message is received from the camera node.
         // Return value indicates if the save was successful.
         bool waitForSaveComplete();
-        
+
         // --- LCM publisher methods -------------------------------------------
         void publishCameraCommand(int8_t command_id);
         void publishRunResult(int8_t return_id);
 
     public:
-        Payload();
-        ~Payload();
+        PayloadController();
+        ~PayloadController();
 
         // Run the main event loop
         void run();
