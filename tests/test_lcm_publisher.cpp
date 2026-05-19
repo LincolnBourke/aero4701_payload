@@ -1,4 +1,4 @@
-#include "run_command.hpp"
+#include "run_command_t.hpp"
 #include <lcm/lcm-cpp.hpp>
 #include <iostream>
 #include <unistd.h>
@@ -12,7 +12,7 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    payload_messages::run_command msg;
+    payload_messages::run_command_t msg;
 
     std::cout << "Publishing run_command messages..." << std::endl;
     for (int i = 0; i < 5; ++i) {

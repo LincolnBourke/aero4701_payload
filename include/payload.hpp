@@ -7,17 +7,28 @@
 
 #include "stewartPlatform.hpp"
 #include "lcmHandler.hpp"
+#include "camera_command_t.hpp"
+#include "run_result_t.hpp"
 
 #include <lcm/lcm-cpp.hpp>
 #include <string>
 #include <vector>
 
+// Define the error processed by the ERROR state
+typedef struct {
+    std::string msg; // Error message 
+} payload_error_t;
+
 class Payload
 {
     private: 
+        // LCM interface 
         lcm::LCM lcm;
         LcmHandler lcm_handler;
 
+        // Error processed by the ERROR state
+        payload_error_t error;
+        
         StewartPlatform platform;
 
         // Relative location of the trajectory csv 
@@ -36,6 +47,24 @@ class Payload
 
         // Writes a vector of motor angles to the file 
         bool writeAnglesToFile(std::string file_path);
+
+        // Incrementally move the platform to the starting trajectory_angles position.
+        // platform_deployed = false indicates this method should be called again.
+        // Return value indicates if the platform could be deployed.
+        bool deployPlatformStep(bool &platform_deployed);
+
+        // Move the platform along the trajectory defined by trajectory_angles.
+        // trajectory_complete = false indicates this method should be called again.
+        // Return value indicates if the trajectory could be successfully followed.
+        bool trackTrajectoryStep(bool &trajectory_complete);
+
+        // Move the platform back to the home position. 
+        // Return value indicates if the platform could be retracted successfully.
+        bool retractPlatform();
+        
+        // --- LCM publisher methods -------------------------------------------
+        void publishCameraCommand(int8_t command_id);
+        void publishRunResult(int8_t return_id);
 
     public:
         Payload();

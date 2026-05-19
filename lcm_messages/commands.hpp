@@ -9,8 +9,20 @@ namespace Commands
 {
     enum RunId
     {
-        START,
-        STOP 
+        RUN_CONTROLLER,
+        STOP_CONTROLLER
+    };
+
+    enum RunResult
+    {
+        SUCCESS,
+        FAIL
+    };
+
+    enum CameraCommandId
+    {
+        START_CAMERA,
+        STOP_AND_SAVE
     };
 }
 

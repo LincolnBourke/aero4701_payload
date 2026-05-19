@@ -1,6 +1,16 @@
 package payload_messages;
 
-struct run_command
+struct run_command_t
+{
+    int8_t command_id;
+}
+
+struct run_result_t
+{
+    int8_t return_id;
+}
+
+struct camera_command_t
 {
     int8_t command_id;
 }

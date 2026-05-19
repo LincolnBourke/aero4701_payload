@@ -8,8 +8,17 @@ LcmHandler::LcmHandler()
 
 LcmHandler::~LcmHandler() {};
 
+// --- Publisher methods -------------------------------------------------------
+// void LcmHandler::publishCameraCommand(int8_t command_id)
+// {
+//     command_id = command_id;
+// }
+
+
+// --- Subscription methods ----------------------------------------------------
+
 void LcmHandler::handleRunCommand(const lcm::ReceiveBuffer* rbuf,
-    const std::string& channel, const payload_messages::run_command* msg)
+    const std::string& channel, const payload_messages::run_command_t* msg)
 {
     printf("[INFO] Received message on channel %s with command_id %d\n", channel.c_str(), msg->command_id);
     

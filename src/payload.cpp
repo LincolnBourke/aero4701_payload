@@ -4,19 +4,22 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+// #include <string>
 
 // States for the core controller state machine
 typedef enum State {
-    IDLE,           // waits for command to start an experiment
-    SETUP,          // reads the trajectory file + calibrates servos
-    DEPLOY,         // deploys the docking port to the starting position
-    RUNNING,        // runs the experiment
-    SAVE_RESULTS,   // saves experiment data and tells the camera node to do the same
-    ERROR,          // publishes an erroneous run result
+    IDLE,           // Waits for command to start an experiment
+    SETUP,          // Reads the trajectory file + calibrates servos
+    DEPLOY,         // Deploys the docking port to the starting position
+    RUNNING,        // Runs the experiment
+    SAVE_RESULTS,   // Saves experiment data and tells the camera node to do the same
+    TERMINATE_RUN,  // Moves the platform back to the home position 
+    ERROR,          // Publishes an erroneous run result
 } state_t;
 
+
 Payload::Payload()
-    : lcm(), lcm_handler(), platform() 
+    : lcm(), lcm_handler(), error(), platform() 
 {
     trajectory_path = "../data/trajectory.csv";
 
@@ -40,48 +43,200 @@ void Payload::run()
 {
     state_t state = IDLE;
     int command_id;
+    bool platform_deployed, trajectory_complete;
     
     while (true)
     {
         switch (state)
         {
-            case IDLE:
-                // Check if a command has been published
-                if (lcm.getFileno() >= 0)
-                {
-                    lcm.handle();
+        case IDLE:
+            // Check if a command has been published
+            if (lcm.getFileno() >= 0)
+            {
+                lcm.handle();
 
-                    // Check if a run command has been published
-                    if (lcm_handler.checkRunCommand(command_id))
-                    {   
-                        // Only move to setup when start command received
-                        if (command_id == Commands::RunId::START)
-                            state = SETUP;
+                // Check if a run command has been published
+                if (lcm_handler.checkRunCommand(command_id))
+                {   
+                    // Only move to setup when start command received
+                    if (command_id == Commands::RunId::RUN_CONTROLLER)
+                    {
+                        state = SETUP;
+                        std::cout << "[INFO] Payload controller state set to SETUP." << std::endl;
+                        break;
                     }
                 }
+            }
 
-                break; 
-            case SETUP: 
-
-                break; 
-            case DEPLOY: 
-
+            break; 
+        case SETUP: 
+            // Read the saved trajectory file    
+            if (readTrajectory() == false)
+            {
+                error.msg = "Could not read trajectory file.";
+                state = ERROR;
+                std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
                 break;
-            case RUNNING: 
-
+            }
+            
+            // Compute the servo angles for the platform to track the trajectory
+            if (computeTrajectoryAngles() == false)
+            {
+                error.msg = "Could not convert trajectory to servo angles.";
+                state = ERROR;
+                std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
                 break;
-            case SAVE_RESULTS: 
+            }
 
-                break;
-            case ERROR: 
+            // Calibrate the servos
+            // TODO            
 
+            // Automatically transition to deploy when the setup steps succeed
+            state = DEPLOY;
+            std::cout << "[INFO] Payload controller state set to DEPLOY." << std::endl;
+            break; 
+        case DEPLOY: 
+            // Make an incremental step to move the platform to the starting position
+            if (deployPlatformStep(platform_deployed) == false)
+            {
+                error.msg = "Could not deploy platform.";
+                state = ERROR;
+                std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
                 break;
-            default: 
-                std::cout << "[ERROR] Payload controller entered invalid state." << std::endl;
+            }
+            
+            // Check if a message has been published to stop the experiment early
+            if (lcm.getFileno() >= 0)
+            {
+                lcm.handle();
+
+                if (lcm_handler.checkRunCommand(command_id))
+                {   
+                    if (command_id == Commands::RunId::STOP_CONTROLLER)
+                    {
+                        state = TERMINATE_RUN;
+                        std::cout << "[INFO] Payload controller state set to TERMINATE_RUN." << std::endl;
+                        break;
+                    }
+                }
+            }
+            
+            // Check if the platform is fully deployed before moving to RUNNING
+            if (platform_deployed == true)
+            {
+                // Start camera nodes
+                publishCameraCommand(Commands::CameraCommandId::START_CAMERA);
+
+                state = RUNNING;
+                std::cout << "[INFO] Payload controller state set to RUNNING." << std::endl;
+                break;
+            }
+
+            break;
+        case RUNNING: 
+            // Make an incremental step to move the platform along the trajectory
+            if (trackTrajectoryStep(trajectory_complete) == false)
+            {
+                error.msg = "Failure while tracking trajectory.";
+                state = ERROR;
+                std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+                break;
+            }
+
+            // Check if a message has been published to stop the experiment early
+            if (lcm.getFileno() >= 0)
+            {
+                lcm.handle();
+
+                if (lcm_handler.checkRunCommand(command_id))
+                {   
+                    if (command_id == Commands::RunId::STOP_CONTROLLER)
+                    {
+                        state = TERMINATE_RUN;
+                        std::cout << "[INFO] Payload controller state set to TERMINATE_RUN." << std::endl;
+                        break;
+                    }
+                }
+            }
+
+            // Check if the trajectory is complete before moving to SAVE_RESULTS
+            if (trajectory_complete == true)
+            {
+                state = SAVE_RESULTS;
+                std::cout << "[INFO] Payload controller state set to SAVE_RESULTS." << std::endl;
+                break;
+            }
+
+            break;
+        case SAVE_RESULTS: 
+            // Create a results file and save the servo angles across the trajectory
+            // TODO
+
+            // Prompt the event camera node to save its results
+            publishCameraCommand(Commands::CameraCommandId::STOP_AND_SAVE);
+
+            // Wait for confirmation that the results have been saved
+            // TODO
+
+            // Let the OBC bridge know the experiment is complete and results file has been saved
+            publishRunResult(Commands::RunResult::SUCCESS);
+
+            // Automatically move back to IDLE if the results save successfully
+            state = IDLE;
+            std::cout << "[INFO] Payload controller state set to IDLE." << std::endl;
+            break;
+        case TERMINATE_RUN:
+            if (retractPlatform() == false)
+            {
+                error.msg = "Failed to retract the platform automatically.";
+                state = ERROR;
+                std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+                break;
+            }
+
+            // Automatically move back to IDLE
+            state = IDLE;
+            std::cout << "[INFO] Payload controller state set to IDLE." << std::endl;
+            break;
+        case ERROR: 
+            // TODO: determine if the error message should be used elsewhere
+            std::cout << "[ERROR] " << error.msg << std::endl;
+            
+            // Let the OBC bridge know the experiment failed
+            publishRunResult(Commands::RunResult::FAIL);
+
+            // Automatically move back to IDLE
+            state = IDLE;
+            std::cout << "[INFO] Payload controller state set to IDLE." << std::endl;
+            break;
+        default: 
+            std::cout << "[ERROR] Payload controller entered invalid state." << std::endl;
         }
     }
 }
 
+// --- Trajectory tracking -----------------------------------------------------
+bool Payload::deployPlatformStep(bool &platform_deployed)
+{
+    platform_deployed = platform_deployed;
+
+    return false; 
+}
+
+bool Payload::trackTrajectoryStep(bool &trajectory_complete)
+{
+    trajectory_complete = trajectory_complete;
+
+    return false; 
+}
+
+bool Payload::retractPlatform()
+{
+    return false; 
+}
+
+
+// --- File i/o ----------------------------------------------------------------
 
 bool Payload::readTrajectory()
 {
@@ -171,20 +326,7 @@ bool Payload::writeAnglesToFile(std::string file_path)
     return write_success;
 }
 
-void Payload::printTrajectory()
-{
-    for (const PlatformPose& pose : trajectory)
-    {
-        std::cout 
-            << "Position: " 
-                << pose.position.transpose() << ", " 
-            << "Orientation: " 
-                << pose.orientation.w() << " "
-                << pose.orientation.x() << "i "
-                << pose.orientation.y() << "j "
-                << pose.orientation.z() << "k" << std::endl;
-    }
-};
+// --- Trajectory parsing ------------------------------------------------------
 
 bool Payload::computeTrajectoryAngles()
 {
@@ -223,4 +365,35 @@ bool Payload::generateTrajectoryAnglesFile(std::string file_path)
 
     return success; 
 }
+
+void Payload::printTrajectory()
+{
+    for (const PlatformPose& pose : trajectory)
+    {
+        std::cout 
+            << "Position: " 
+                << pose.position.transpose() << ", " 
+            << "Orientation: " 
+                << pose.orientation.w() << " "
+                << pose.orientation.x() << "i "
+                << pose.orientation.y() << "j "
+                << pose.orientation.z() << "k" << std::endl;
+    }
+};
+
+// --- LCM publisher methods ---------------------------------------------------
+void Payload::publishCameraCommand(int8_t command_id)
+{
+    payload_messages::camera_command_t msg;
+    msg.command_id = command_id;
+    lcm.publish("CAMERA_COMMAND", &msg);
+}
+
+void Payload::publishRunResult(int8_t return_id)
+{
+    payload_messages::run_result_t msg;
+    msg.return_id = return_id;
+    lcm.publish("RUN_RESULT", &msg);
+}
+
 
