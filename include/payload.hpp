@@ -14,6 +14,13 @@
 #include <string>
 #include <vector>
 
+// Define a trajectory
+typedef struct {
+    std::vector<PlatformPose> poses;
+    std::vector<std::array<float, NUM_SERVOS>> angles;
+    std::vector<float> times;
+} trajectory_t;
+
 // Define the error processed by the ERROR state
 typedef struct {
     std::string msg; // Error message 
@@ -31,29 +38,35 @@ class Payload
         
         StewartPlatform platform;
 
-        // Relative location of the trajectory csv 
-        std::string trajectory_path; 
+        // Relative path to the trajectory csv file
+        std::string trajectory_path;
 
-        // The trajectory for the Stewart platform to track
-        std::vector<PlatformPose> trajectory;
+        // The fully interpolated trajectory for the platform to track
+        trajectory_t trajectory;
 
-        // The motor angles for the Stewart platform to track to follow the trajectory
-        std::vector<std::array<float, NUM_SERVOS>> trajectory_angles;
+        // Reads raw poses from the trajectory file into raw_poses.
+        // Return value indicates if the file was found and read successfully.
+        bool readRawPoses(std::vector<PlatformPose>& raw_poses);
 
-        // Computes the Stewart platform trajectory to a set of motor angles
-        // Populates the trajectory_angles member.
+        // Interpolates between raw_poses at TRAJECTORY_STRUCT_STEP intervals,
+        // populating out.poses and out.times.
+        // Return value indicates if interpolation was successful.
+        bool interpolateTrajectory(const std::vector<PlatformPose>& raw_poses, trajectory_t& out);
+
+        // Computes servo angles for every pose in traj, populating traj.angles.
         // Return value indicates if all angles could be calculated.
-        bool computeTrajectoryAngles();
+        bool computeTrajectoryAngles(trajectory_t& traj);
 
-        // Writes a vector of motor angles to the file 
+        // Writes the servo angles in the trajectory struct to a file.
+        // Return value indicates if the file could be written.
         bool writeAnglesToFile(std::string file_path);
 
-        // Incrementally move the platform to the starting trajectory_angles position.
+        // Incrementally moves the platform to the starting position in trajectory.angles.
         // platform_deployed = false indicates this method should be called again.
         // Return value indicates if the platform could be deployed.
         bool deployPlatformStep(bool &platform_deployed);
 
-        // Move the platform along the trajectory defined by trajectory_angles.
+        // Moves the platform along the trajectory defined by trajectory.
         // trajectory_complete = false indicates this method should be called again.
         // Return value indicates if the trajectory could be successfully followed.
         bool trackTrajectoryStep(bool &trajectory_complete);
@@ -74,12 +87,13 @@ class Payload
         Payload();
         ~Payload();
 
-        // Run the main event loop 
-        void run(); 
+        // Run the main event loop
+        void run();
 
-        // Read the trajectory from the file and store in memory
-        // Return value indicates if the file was found 
-        bool readTrajectory();
+        // Reads the trajectory file, interpolates to TRAJECTORY_STRUCT_STEP intervals,
+        // and computes servo angles. Populates the trajectory member atomically.
+        // Return value indicates if the trajectory was built successfully.
+        bool buildTrajectory();
 
         // Display the trajectory to std::cout 
         void printTrajectory();

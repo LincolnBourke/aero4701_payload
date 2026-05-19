@@ -5,6 +5,9 @@
 #include <fstream>
 #include <sstream>
 
+#define TRAJECTORY_FILE_STEP 1000/5 // ms, time between successive poses in the trajectory file
+#define TRAJECTORY_STRUCT_STEP 20 // ms, time between successive poses in the trajectory struct
+
 // States for the core controller state machine
 typedef enum State {
     IDLE,           // Waits for command to start an experiment
@@ -22,10 +25,6 @@ Payload::Payload()
 {
     trajectory_path = "../data/trajectory.csv";
 
-    // Initialise empty trajectory 
-    trajectory = std::vector<PlatformPose>();
-    trajectory_angles = std::vector<std::array<float, NUM_SERVOS>>();
-
     if (!lcm.good())
     {
         std::cout << "[ERROR] LCM object could not be created." << std::endl;
@@ -37,7 +36,6 @@ Payload::Payload()
 };
 
 Payload::~Payload(){};
-
 
 void Payload::run()
 {
@@ -69,27 +67,17 @@ void Payload::run()
             }
 
             break; 
-        case SETUP: 
-            // Read the saved trajectory file    
-            if (readTrajectory() == false)
+        case SETUP:
+            // Read the trajectory file, interpolate, and compute servo angles
+            if (buildTrajectory() == false)
             {
-                error.msg = "Could not read trajectory file.";
-                state = ERROR;
-                std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
-                break;
-            }
-            
-            // Compute the servo angles for the platform to track the trajectory
-            if (computeTrajectoryAngles() == false)
-            {
-                error.msg = "Could not convert trajectory to servo angles.";
                 state = ERROR;
                 std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
                 break;
             }
 
             // Calibrate the servos
-            // TODO            
+            // TODO
 
             // Automatically transition to deploy when the setup steps succeed
             state = DEPLOY;
@@ -219,6 +207,7 @@ void Payload::run()
 }
 
 // --- Trajectory tracking -----------------------------------------------------
+
 bool Payload::deployPlatformStep(bool &platform_deployed)
 {
     platform_deployed = platform_deployed;
@@ -263,33 +252,29 @@ bool Payload::waitForSaveComplete()
     return result;
 }
 
-
 // --- File i/o ----------------------------------------------------------------
 
-bool Payload::readTrajectory()
+bool Payload::readRawPoses(std::vector<PlatformPose>& raw_poses)
 {
-    bool read_success = true; 
+    bool result = true;
     std::ifstream file(trajectory_path);
 
-    // Clear the current trajectory 
-    trajectory.clear();
-
-    // Check for valid file
+    // Check the file could be opened
     if (!file.is_open())
     {
         std::cout << "Trajectory file not found." << std::endl;
-        read_success = false;
+        result = false;
     }
-    else 
-    {   
-        // Read each line of the file 
-        std::string line; 
+    else
+    {
+        // Read each line of the file
+        std::string line;
         while (std::getline(file, line))
         {
             std::stringstream ss(line);
             std::string p_x, p_y, p_z, roll, pitch, yaw;
 
-            // Iterate through entries in the line  
+            // Parse the six comma-separated values on each line
             if (std::getline(ss, p_x, ',') &&
                 std::getline(ss, p_y, ',') &&
                 std::getline(ss, p_z, ',') &&
@@ -298,105 +283,183 @@ bool Payload::readTrajectory()
                 std::getline(ss, yaw))
             {
                 // Convert euler angles in degrees to a quaternion
-                Eigen::AngleAxisf rollAngle(std::stof(roll) * M_PI / 180,   Eigen::Vector3f::UnitX());
-                Eigen::AngleAxisf pitchAngle(std::stof(pitch) * M_PI / 180, Eigen::Vector3f::UnitY());
-                Eigen::AngleAxisf yawAngle(std::stof(yaw) * M_PI / 180,     Eigen::Vector3f::UnitZ());
+                Eigen::AngleAxisf roll_angle(std::stof(roll) * M_PI / 180,   Eigen::Vector3f::UnitX());
+                Eigen::AngleAxisf pitch_angle(std::stof(pitch) * M_PI / 180, Eigen::Vector3f::UnitY());
+                Eigen::AngleAxisf yaw_angle(std::stof(yaw) * M_PI / 180,     Eigen::Vector3f::UnitZ());
 
-                Eigen::Quaternionf q = yawAngle * pitchAngle * rollAngle;
+                Eigen::Quaternionf q = yaw_angle * pitch_angle * roll_angle;
 
                 PlatformPose pose {
                     Vector3f(std::stof(p_x), std::stof(p_y), std::stof(p_z)), q
                 };
-                
-                trajectory.push_back(pose);
+
+                raw_poses.push_back(pose);
             }
             else
             {
                 std::cout << "Error reading trajectory file." << std::endl;
-                read_success = false; 
+                result = false;
                 break;
             }
         }
-    
+
         file.close();
     }
-    
-    return read_success;
-};
+
+    return result;
+}
 
 bool Payload::writeAnglesToFile(std::string file_path)
 {
-    bool write_success = true;
+    bool result = true;
     std::ofstream file(file_path);
 
     // Check the file could be opened/created
     if (!file.is_open())
     {
         std::cout << "Error: could not open file for writing: " << file_path << std::endl;
-        write_success = false;
+        result = false;
     }
     else
-    {   
-        // Write the angles to the file 
-        for (const auto& angles : trajectory_angles)
+    {
+        // Write each row of servo angles as a comma-separated line
+        for (const auto& angles : trajectory.angles)
         {
-            for (size_t i = 0; i < NUM_SERVOS-1; i++)
+            for (size_t i = 0; i < NUM_SERVOS - 1; i++)
             {
                 file << angles[i] << ",";
             }
 
-            file << angles[NUM_SERVOS-1] << "\n";
+            file << angles[NUM_SERVOS - 1] << "\n";
         }
 
         file.close();
     }
-   
-    return write_success;
+
+    return result;
 }
 
-// --- Trajectory parsing ------------------------------------------------------
+// --- Trajectory building -----------------------------------------------------
 
-bool Payload::computeTrajectoryAngles()
+bool Payload::interpolateTrajectory(const std::vector<PlatformPose>& raw_poses, trajectory_t& out)
 {
-    bool success = true; 
-    std::array<float, NUM_SERVOS> angles; 
-
-    // Pre-allocate memory for the angles 
-    trajectory_angles.resize(trajectory.size());
-
-    // Iterate through poses in the trajectory and calculate the required servo angles
-    for (size_t i = 0; i < trajectory.size(); i++)
+    // Require at least two poses to interpolate between
+    if (raw_poses.size() < 2)
     {
-        // Calculate the servo angles 
-        if (!platform.getAnglesForMove(trajectory[i], &angles))
+        return false;
+    }
+
+    const int n_steps = TRAJECTORY_FILE_STEP / TRAJECTORY_STRUCT_STEP;
+
+    // Interpolate between each consecutive pair of raw poses
+    for (size_t i = 0; i < raw_poses.size() - 1; i++)
+    {
+        // Generate n_steps interpolated poses between raw_poses[i] and raw_poses[i+1]
+        for (int j = 0; j < n_steps; j++)
         {
-            success = false; 
+            float t = (float)j / n_steps;
+
+            // Linearly interpolate position
+            Vector3f pos = raw_poses[i].position + t * (raw_poses[i + 1].position - raw_poses[i].position);
+
+            // Spherically interpolate orientation
+            Eigen::Quaternionf orientation = raw_poses[i].orientation.slerp(t, raw_poses[i + 1].orientation);
+
+            out.poses.push_back({pos, orientation});
+            out.times.push_back((float)(i * TRAJECTORY_FILE_STEP + j * TRAJECTORY_STRUCT_STEP));
+        }
+    }
+
+    // Append the final raw pose to close the trajectory
+    out.poses.push_back(raw_poses.back());
+    out.times.push_back((float)((raw_poses.size() - 1) * TRAJECTORY_FILE_STEP));
+
+    return true;
+}
+
+bool Payload::computeTrajectoryAngles(trajectory_t& traj)
+{
+    bool result = true;
+    std::array<float, NUM_SERVOS> angles;
+
+    // Pre-allocate memory for the angles
+    traj.angles.resize(traj.poses.size());
+
+    // Compute the required servo angles for each pose in the trajectory
+    for (size_t i = 0; i < traj.poses.size(); i++)
+    {
+        if (!platform.getAnglesForMove(traj.poses[i], &angles))
+        {
+            result = false;
             break;
         }
-        trajectory_angles[i] = angles;
-    }   
-    
-    return success;
+
+        traj.angles[i] = angles;
+    }
+
+    return result;
 }
 
+bool Payload::buildTrajectory()
+{
+    trajectory_t temp;
+    std::vector<PlatformPose> raw_poses;
+
+    // Read the raw poses from the trajectory file
+    if (readRawPoses(raw_poses) == false)
+    {
+        error.msg = "Could not read trajectory file.";
+        return false;
+    }
+
+    // Interpolate between raw poses at TRAJECTORY_STRUCT_STEP intervals
+    if (interpolateTrajectory(raw_poses, temp) == false)
+    {
+        error.msg = "Could not interpolate trajectory.";
+        return false;
+    }
+
+    // Compute servo angles for each interpolated pose
+    if (computeTrajectoryAngles(temp) == false)
+    {
+        error.msg = "Could not convert trajectory to servo angles.";
+        return false;
+    }
+
+    // Assign only on complete success to avoid partial population
+    trajectory = temp;
+    return true;
+}
+
+// --- Trajectory debugging ----------------------------------------------------
+
 bool Payload::generateTrajectoryAnglesFile(std::string file_path)
-{   
-    bool success = false; 
+{
+    bool result = true;
 
-    if (readTrajectory())
-        if (computeTrajectoryAngles())
-            if (writeAnglesToFile(file_path))
-                success = true; 
-    
-    if (!success)
+    // Build the full trajectory struct from the trajectory file
+    if (buildTrajectory() == false)
+    {
+        result = false;
+    }
+
+    // Write the computed servo angles to the output file
+    if (result == true && writeAnglesToFile(file_path) == false)
+    {
+        result = false;
+    }
+
+    if (result == false)
+    {
         std::cout << "Error: could not generate trajectory angles file." << std::endl;
+    }
 
-    return success; 
+    return result;
 }
 
 void Payload::printTrajectory()
 {
-    for (const PlatformPose& pose : trajectory)
+    for (const PlatformPose& pose : trajectory.poses)
     {
         std::cout 
             << "Position: " 
@@ -410,6 +473,7 @@ void Payload::printTrajectory()
 };
 
 // --- LCM publisher methods ---------------------------------------------------
+
 void Payload::publishCameraCommand(int8_t command_id)
 {
     payload_messages::camera_command_t msg;
@@ -423,5 +487,3 @@ void Payload::publishRunResult(int8_t return_id)
     msg.return_id = return_id;
     lcm.publish("RUN_RESULT", &msg);
 }
-
-
