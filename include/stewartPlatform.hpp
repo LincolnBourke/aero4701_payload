@@ -58,8 +58,8 @@ class StewartPlatform
         // Implements the inverse kinematics of the Stewart platform. 
         bool computeServoTargets(bool print_errors);
 
-        // 
-        float computeAngularSkew(int servo_sum);
+        // Computes the angular skew of the upper arm for a given servo at the specified angle
+        float computeAngularSkew(int servo_num, float servo_angle);
     
     public: 
         StewartPlatform();

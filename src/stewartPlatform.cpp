@@ -96,7 +96,7 @@ bool StewartPlatform::moveTo(PlatformPose* target_pose)
         platform_pose_target.orientation = target_pose->orientation;
         platform_pose_target.position[2] += (BASE_Z_OFFSET + PLATFORM_Z_OFFSET);
 
-        successful_calculation = computeServoTargets(true);
+        successful_calculation = computeServoTargets(false);
     }
 
     return successful_calculation;
@@ -212,7 +212,7 @@ bool StewartPlatform::computeServoTargets(bool print_errors)
         }
 
         // 
-        if (computeAngularSkew(i) > (15.0f * M_PI / 180))
+        if (computeAngularSkew(i, servo_target) > (15.0f * M_PI / 180))
         {
             if (print_errors)
                 std::cout << "Error: Angular skew exceeded." << std::endl;
@@ -227,15 +227,15 @@ bool StewartPlatform::computeServoTargets(bool print_errors)
     return successful_calculation;
 };
 
-float StewartPlatform::computeAngularSkew(int servo_num)
+float StewartPlatform::computeAngularSkew(int servo_num, float servo_angle)
 {
-    // Angles of the servo horns when viewed from above 
+    // Angles of the servo horns when viewed from above
     float c_above = std::cos(servo_angular_pos[servo_num]);
     float s_above = std::sin(servo_angular_pos[servo_num]);
-    
-    // Angles of the servo horns from the horizontal 
-    float c_hor = std::cos(servos[servo_num].getAngle());
-    float s_hor = std::sin(servos[servo_num].getAngle());
+
+    // Angles of the servo horns from the horizontal
+    float c_hor = std::cos(servo_angle);
+    float s_hor = std::sin(servo_angle);
 
     // Vector along the servo horn (starting from motor axis)
     Vector3f bottom_arm = lower_arm_length * Vector3f(c_above * c_hor, s_above * c_hor, s_hor);
@@ -265,7 +265,7 @@ bool StewartPlatform::computePlatformPose()
 
     // Get the roll, pitch, yaw of the last target platform pose.
     // (0, 1, 2) argument ordering extracts in order of [roll, pitch, yaw]
-    Vector3f euler_angles = platform_pose_target.orientation.toRotationMatrix().eulerAngles(0, 1, 2);
+    Vector3f euler_angles = platform_pose_target.orientation.toRotationMatrix().eulerAngles(2, 1, 0);
     
     // Initial guess for the platform pose - stored as [x, y, z, roll, pitch, yaw]
     Eigen::Matrix<float, NUM_SERVOS, 1> pose_guess; 
@@ -349,11 +349,11 @@ bool StewartPlatform::computePlatformPose()
         for (int i = 0; i < NUM_SERVOS; i++)
             b_sum = b_sum + std::abs(b(i));
 
-        // if (b_sum < NR_TOL)
-        // {
-        //     successful_calculation = true;
-        //     break;
-        // }
+        if (b_sum < NR_TOL)
+        {
+            successful_calculation = true;
+            break;
+        }
 
         // Update the platform pose estimate
         Eigen::Matrix<float, NUM_SERVOS, 1> pose_update = A.fullPivLu().solve(b);
@@ -383,9 +383,9 @@ bool StewartPlatform::computePlatformPose()
     {
         platform_pose.position = pose_guess.head(3);
         platform_pose.orientation = 
-            Eigen::AngleAxisf(pose_guess(3), Vector3f::UnitX()) * 
+            Eigen::AngleAxisf(pose_guess(3), Vector3f::UnitZ()) * 
             Eigen::AngleAxisf(pose_guess(4), Vector3f::UnitY()) * 
-            Eigen::AngleAxisf(pose_guess(5), Vector3f::UnitZ());
+            Eigen::AngleAxisf(pose_guess(5), Vector3f::UnitX());
 
         // Ensure the quaternion is normalised
         platform_pose.orientation.normalize();
