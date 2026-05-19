@@ -44,10 +44,13 @@ add_executable(test_kinematics_closure
 
 target_include_directories(test_kinematics_closure PRIVATE
     include
+    "lcm_messages/payload_messages"
 )
 
 target_link_libraries(test_kinematics_closure PRIVATE
     Eigen3::Eigen
+    ${LCM_NAMESPACE}lcm
+    payload_messages_lcm
 )
 
 add_executable(test_lcm_publisher tests/test_lcm_publisher.cpp)

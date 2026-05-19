@@ -48,6 +48,12 @@ class PlatformTestFixture : public StewartPlatform
             platform_pose_target = { Vector3f(0.0f, 0.0f, INTERNAL_Z_OFFSET), Quaternionf::Identity() };
         }
 
+        // Sets the FK initial condition to 20mm above home
+        void setColdStartPose()
+        {
+            platform_pose_target = { Vector3f(0.0f, 0.0f, INTERNAL_Z_OFFSET + 20.0), Quaternionf::Identity() };
+        }
+
         // Returns the internal pose target used as the FK initial condition
         const PlatformPose& getPoseTarget() const
         {
@@ -90,7 +96,7 @@ TestResult runSingleTest(PlatformTestFixture& platform, const PlatformPose& test
     PlatformPose pose = test_pose;
 
     // Run IK to compute servo targets for this pose
-    if (!platform.moveTo(&pose))
+    if (!platform.moveTo(pose))
     {
         result.ik_failed = true;
         return result;
@@ -102,7 +108,7 @@ TestResult runSingleTest(PlatformTestFixture& platform, const PlatformPose& test
     // For cold start, reset FK initial condition to home before solving
     if (cold_start)
     {
-        platform.resetToHome();
+        platform.setColdStartPose();
     }
 
     // Run FK to recover the platform pose from the current servo angles

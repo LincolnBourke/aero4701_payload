@@ -5,8 +5,8 @@
 #include <fstream>
 #include <sstream>
 
-#define TRAJECTORY_FILE_STEP 1000/5 // ms, time between successive poses in the trajectory file
-#define TRAJECTORY_STRUCT_STEP 20 // ms, time between successive poses in the trajectory struct
+#define TRAJECTORY_FILE_STEP 5000 // ms, time between successive poses in the trajectory file
+#define TRAJECTORY_STRUCT_STEP 100 // ms, time between successive poses in the trajectory struct
 
 // States for the core controller state machine
 typedef enum State {
@@ -21,13 +21,13 @@ typedef enum State {
 
 
 Payload::Payload()
-    : lcm(), lcm_handler(), error(), platform() 
+    : lcm(), lcm_handler(), error(), platform(), trajectory_step(0), experiment_start_time()
 {
-    trajectory_path = "../data/trajectory.csv";
+    trajectory_path = "../data/trajectory_simple.csv";
 
     if (!lcm.good())
     {
-        std::cout << "[ERROR] LCM object could not be created." << std::endl;
+        std::cout << "[ERROR] Payload LCM object not good." << std::endl;
     }
 
     // Subscribe lcm handler to messages
@@ -48,25 +48,20 @@ void Payload::run()
         switch (state)
         {
         case IDLE:
-            // Check if a command has been published
-            if (lcm.getFileno() >= 0)
+            // Check if a run command has been published
+            lcm.handleTimeout(0);
+            if (lcm_handler.checkRunCommand(command_id))
             {
-                lcm.handle();
-
-                // Check if a run command has been published
-                if (lcm_handler.checkRunCommand(command_id))
-                {   
-                    // Only move to setup when start command received
-                    if (command_id == Commands::RunId::RUN_CONTROLLER)
-                    {
-                        state = SETUP;
-                        std::cout << "[INFO] Payload controller state set to SETUP." << std::endl;
-                        break;
-                    }
+                // Only move to setup when start command received
+                if (command_id == Commands::RunId::RUN_CONTROLLER)
+                {
+                    state = SETUP;
+                    std::cout << "[INFO] Payload controller state set to SETUP." << std::endl;
+                    break;
                 }
             }
 
-            break; 
+            break;
         case SETUP:
             // Read the trajectory file, interpolate, and compute servo angles
             if (buildTrajectory() == false)
@@ -94,21 +89,17 @@ void Payload::run()
             }
             
             // Check if a message has been published to stop the experiment early
-            if (lcm.getFileno() >= 0)
+            lcm.handleTimeout(0);
+            if (lcm_handler.checkRunCommand(command_id))
             {
-                lcm.handle();
-
-                if (lcm_handler.checkRunCommand(command_id))
-                {   
-                    if (command_id == Commands::RunId::STOP_CONTROLLER)
-                    {
-                        state = TERMINATE_RUN;
-                        std::cout << "[INFO] Payload controller state set to TERMINATE_RUN." << std::endl;
-                        break;
-                    }
+                if (command_id == Commands::RunId::STOP_CONTROLLER)
+                {
+                    state = TERMINATE_RUN;
+                    std::cout << "[INFO] Payload controller state set to TERMINATE_RUN." << std::endl;
+                    break;
                 }
             }
-            
+
             // Check if the platform is fully deployed before moving to RUNNING
             if (platform_deployed == true)
             {
@@ -117,6 +108,8 @@ void Payload::run()
 
                 state = RUNNING;
                 std::cout << "[INFO] Payload controller state set to RUNNING." << std::endl;
+                experiment_start_time = std::chrono::steady_clock::now(); // Start timing experiment
+                trajectory_step = 0; // Track trajectory from the start 
                 break;
             }
 
@@ -132,18 +125,14 @@ void Payload::run()
             }
 
             // Check if a message has been published to stop the experiment early
-            if (lcm.getFileno() >= 0)
+            lcm.handleTimeout(0);
+            if (lcm_handler.checkRunCommand(command_id))
             {
-                lcm.handle();
-
-                if (lcm_handler.checkRunCommand(command_id))
-                {   
-                    if (command_id == Commands::RunId::STOP_CONTROLLER)
-                    {
-                        state = TERMINATE_RUN;
-                        std::cout << "[INFO] Payload controller state set to TERMINATE_RUN." << std::endl;
-                        break;
-                    }
+                if (command_id == Commands::RunId::STOP_CONTROLLER)
+                {
+                    state = TERMINATE_RUN;
+                    std::cout << "[INFO] Payload controller state set to TERMINATE_RUN." << std::endl;
+                    break;
                 }
             }
 
@@ -210,20 +199,44 @@ void Payload::run()
 
 bool Payload::deployPlatformStep(bool &platform_deployed)
 {
-    platform_deployed = platform_deployed;
+    // TODO: current set to move past successfully
+    platform_deployed = true;
 
-    return false; 
+    return true; 
 }
 
 bool Payload::trackTrajectoryStep(bool &trajectory_complete)
 {
-    trajectory_complete = trajectory_complete;
+    trajectory_complete = false;
 
-    return false; 
+    // Check if there are no more poses remaining to track
+    if (trajectory_step == trajectory.times.size())
+    {
+        trajectory_complete = true;
+        return true;
+    }
+    
+    // Get the current experiment time in ms
+    std::chrono::duration<double> time_temp = std::chrono::steady_clock::now() - experiment_start_time;
+    double experiment_time = std::chrono::duration<double, std::milli>(time_temp).count();
+
+    // Move the platform to the next pose until we catch up to the current time
+    while (experiment_time >= trajectory.times[trajectory_step])
+    {
+        if (platform.moveTo(trajectory.poses[trajectory_step]) == false)
+        {
+            error.msg = "Could not move platform to target pose.";
+            return false;
+        }
+        trajectory_step++;
+    }    
+
+    return true; 
 }
 
 bool Payload::retractPlatform()
 {
+    // TODO
     return false;
 }
 
@@ -459,16 +472,31 @@ bool Payload::generateTrajectoryAnglesFile(std::string file_path)
 
 void Payload::printTrajectory()
 {
-    for (const PlatformPose& pose : trajectory.poses)
+    for (size_t i = 0; i < trajectory.poses.size(); i++)
     {
-        std::cout 
-            << "Position: " 
-                << pose.position.transpose() << ", " 
-            << "Orientation: " 
-                << pose.orientation.w() << " "
-                << pose.orientation.x() << "i "
-                << pose.orientation.y() << "j "
-                << pose.orientation.z() << "k" << std::endl;
+        const PlatformPose& pose = trajectory.poses[i];
+
+        // Print timestamp, position, and orientation
+        std::cout
+            << "t=" << trajectory.times[i] << " ms  "
+            << "pos=["  << pose.position.transpose() << "]  "
+            << "ori=["  << pose.orientation.w() << " "
+                        << pose.orientation.x() << "i "
+                        << pose.orientation.y() << "j "
+                        << pose.orientation.z() << "k]  "
+            << "angles=[";
+
+        // Print servo angles
+        for (size_t j = 0; j < NUM_SERVOS; j++)
+        {
+            std::cout << trajectory.angles[i][j];
+            if (j < NUM_SERVOS - 1)
+            {
+                std::cout << " ";
+            }
+        }
+
+        std::cout << "]" << std::endl;
     }
 };
 
@@ -478,6 +506,7 @@ void Payload::publishCameraCommand(int8_t command_id)
 {
     payload_messages::camera_command_t msg;
     msg.command_id = command_id;
+    std::cout << "[INFO] Publishing to CAMERA_COMMAND: command_id=" << (int)command_id << std::endl;
     lcm.publish("CAMERA_COMMAND", &msg);
 }
 
@@ -485,5 +514,6 @@ void Payload::publishRunResult(int8_t return_id)
 {
     payload_messages::run_result_t msg;
     msg.return_id = return_id;
+    std::cout << "[INFO] Publishing to RUN_RESULT: return_id=" << (int)return_id << std::endl;
     lcm.publish("RUN_RESULT", &msg);
 }

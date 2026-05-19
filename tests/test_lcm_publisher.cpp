@@ -15,7 +15,7 @@ int main(int argc, char* argv[])
     payload_messages::run_command_t msg;
 
     std::cout << "Publishing run_command messages..." << std::endl;
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 10; i += 2) {
         msg.command_id = i;
         std::cout << "Publishing command_id: " << (int)msg.command_id << std::endl;
         lcm.publish("RUN_COMMAND", &msg);

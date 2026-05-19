@@ -13,6 +13,7 @@
 #include <lcm/lcm-cpp.hpp>
 #include <string>
 #include <vector>
+#include <chrono>
 
 // Define a trajectory
 typedef struct {
@@ -43,6 +44,12 @@ class Payload
 
         // The fully interpolated trajectory for the platform to track
         trajectory_t trajectory;
+
+        // The step number which trackTrajectoryStep is up to 
+        std::vector<float>::size_type trajectory_step;
+
+        // The time for which the experiment has been running
+        std::chrono::time_point<std::chrono::steady_clock> experiment_start_time;
 
         // Reads raw poses from the trajectory file into raw_poses.
         // Return value indicates if the file was found and read successfully.

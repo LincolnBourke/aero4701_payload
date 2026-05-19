@@ -12,6 +12,7 @@
 
 #include <array>
 #include <Eigen/Dense>
+#include <lcm/lcm-cpp.hpp>
 
 #define NUM_SERVOS 6
 
@@ -30,6 +31,10 @@ struct PlatformPose
 
 class StewartPlatform
 {
+    private:
+        // LCM instance for publishing servo targets
+        lcm::LCM lcm;
+
     protected: 
         // Platform geometry 
         float lower_arm_length;                             // in mm     
@@ -60,13 +65,17 @@ class StewartPlatform
 
         // Computes the angular skew of the upper arm for a given servo at the specified angle
         float computeAngularSkew(int servo_num, float servo_angle);
+
+        // --- LCM publisher methods -------------------------------------------
+        void publishServoTargets();
     
     public: 
         StewartPlatform();
         ~StewartPlatform();
 
-        // Move the platform to a target pose 
-        bool moveTo(PlatformPose* target_pose);
+        // Move the platform to a target pose by publishing servo targets 
+        // Return value indicates success of move.
+        bool moveTo(const PlatformPose &target_pose);
 
         // Compute the servo angles required for a target pose without updating
         // the state of the Stewart platform. 

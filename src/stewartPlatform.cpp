@@ -1,4 +1,5 @@
 #include "stewartPlatform.hpp"
+#include "servo_targets_t.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -59,11 +60,11 @@ StewartPlatform::StewartPlatform()
         base_anchors[i+1] = BASE_ANCHOR_RADIUS * Vector3f(std::cos(upper_base_ang), std::sin(upper_base_ang), 0);
         platform_anchors[i] = PLATFORM_ANCHOR_RADIUS * Vector3f(std::cos(lower_plat_ang), std::sin(lower_plat_ang), 0);
         platform_anchors[i+1] = PLATFORM_ANCHOR_RADIUS * Vector3f(std::cos(upper_plat_ang), std::sin(upper_plat_ang), 0);
-        
-        // std::cout << "Base Anchor " << i << ": " << base_anchors[i].transpose() << std::endl;
-        // std::cout << "Base Anchor " << i+1 << ": " << base_anchors[i+1].transpose() << std::endl;
-        // std::cout << "Platform Anchor " << i << ": " << platform_anchors[i].transpose() << std::endl;
-        // std::cout << "Platform Anchor " << i+1 << ": " << platform_anchors[i+1].transpose() << std::endl;
+    }
+
+    if (!lcm.good())
+    {
+        std::cout << "[ERROR] StewartPlatform LCM object not good." << std::endl;
     }
 };
 
@@ -79,27 +80,21 @@ const PlatformPose& StewartPlatform::getPlatformPose() const
     return platform_pose;
 }
 
-bool StewartPlatform::moveTo(PlatformPose* target_pose)
+bool StewartPlatform::moveTo(const PlatformPose &target_pose)
 {
-    bool successful_calculation = true;
+    // Update internal pose target
+    platform_pose_target.position = target_pose.position;
+    platform_pose_target.orientation = target_pose.orientation;
+    platform_pose_target.position[2] += (BASE_Z_OFFSET + PLATFORM_Z_OFFSET);
 
-    // Check platform does not intersect servo brace 
-    if (target_pose->position[2] < 0)
-    {
-        std::cout << "Error: platform target z position must be > 0." << std::endl;
-        successful_calculation = false;
-    }
-    else 
-    {
-        // Update internal pose target
-        platform_pose_target.position = target_pose->position;
-        platform_pose_target.orientation = target_pose->orientation;
-        platform_pose_target.position[2] += (BASE_Z_OFFSET + PLATFORM_Z_OFFSET);
+    // Attempt to calculate the servo targets for the pose target
+    if (computeServoTargets(false) == false)
+        return false;
 
-        successful_calculation = computeServoTargets(false);
-    }
+    // Publish targets for servo controller to use
+    publishServoTargets();
 
-    return successful_calculation;
+    return true;
 };
 
 bool StewartPlatform::getAnglesForMove(PlatformPose target_pose, std::array<float, NUM_SERVOS>* angles)
@@ -142,6 +137,16 @@ bool StewartPlatform::getAnglesForMove(PlatformPose target_pose, std::array<floa
 bool StewartPlatform::computeServoTargets(bool print_errors)
 {
     bool successful_calculation = true;
+
+    // Check platform does not intersect servo brace 
+    if (platform_pose_target.position[2] < 0)
+    {
+        if (print_errors)
+            std::cout << "Error: platform target z position must be >= 0." << std::endl;
+        
+        successful_calculation = false;
+        return successful_calculation;
+    }
 
     // Compute angle for each servo
     for (int i = 0; i < NUM_SERVOS; i++)
@@ -483,4 +488,27 @@ void StewartPlatformAnalyser::savePointCloud(std::vector<PlatformPose>& point_cl
     }
 
     file.close();
+}
+
+// --- LCM publisher methods ---------------------------------------------------
+
+void StewartPlatform::publishServoTargets()
+{
+    // Populate and publish the servo targets message
+    payload_messages::servo_targets_t msg;
+
+    for (int i = 0; i < NUM_SERVOS; i++)
+    {
+        msg.angles[i] = servo_targets[i];
+    }
+
+    // Print the channel and each servo angle being published
+    std::cout << "[INFO] Publishing to SERVO_TARGETS:";
+    for (int i = 0; i < NUM_SERVOS; i++)
+    {
+        std::cout << " s" << i << "=" << msg.angles[i];
+    }
+    std::cout << std::endl;
+
+    lcm.publish("SERVO_TARGETS", &msg);
 }

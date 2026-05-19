@@ -19,3 +19,13 @@ struct save_complete_t
 {
     int8_t return_id;
 }
+
+struct servo_targets_t
+{
+    float angles[6];
+}
+
+struct true_servo_angles_t
+{
+    float angles[6];
+}
