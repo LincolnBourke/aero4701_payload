@@ -58,9 +58,13 @@ class Payload
         // Return value indicates if the trajectory could be successfully followed.
         bool trackTrajectoryStep(bool &trajectory_complete);
 
-        // Move the platform back to the home position. 
+        // Move the platform back to the home position.
         // Return value indicates if the platform could be retracted successfully.
         bool retractPlatform();
+
+        // Block until a save_complete message is received from the camera node.
+        // Return value indicates if the save was successful.
+        bool waitForSaveComplete();
         
         // --- LCM publisher methods -------------------------------------------
         void publishCameraCommand(int8_t command_id);

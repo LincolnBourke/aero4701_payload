@@ -2,18 +2,12 @@
 
 #include <iostream>
 
-LcmHandler::LcmHandler() 
-    : last_run_command_msg(), run_command_received(false)
+LcmHandler::LcmHandler()
+    : last_run_command_msg(), run_command_received(false),
+      last_save_complete_msg(), save_complete_received(false)
 {};
 
 LcmHandler::~LcmHandler() {};
-
-// --- Publisher methods -------------------------------------------------------
-// void LcmHandler::publishCameraCommand(int8_t command_id)
-// {
-//     command_id = command_id;
-// }
-
 
 // --- Subscription methods ----------------------------------------------------
 
@@ -32,7 +26,7 @@ bool LcmHandler::checkRunCommand(int& command_id)
 {
     if (run_command_received == false)
     {
-        return false; 
+        return false;
     }
 
     command_id = last_run_command_msg.command_id;
@@ -41,25 +35,26 @@ bool LcmHandler::checkRunCommand(int& command_id)
     return true;
 }
 
+void LcmHandler::handleSaveComplete(const lcm::ReceiveBuffer* rbuf,
+    const std::string& channel, const payload_messages::save_complete_t* msg)
+{
+    printf("[INFO] Received message on channel %s with return_id %d\n", channel.c_str(), msg->return_id);
 
-/*
-void handleMessage(const lcm::ReceiveBuffer* rbuf,
-                const std::string& chan, 
-                const exlcm::example_t* msg)
-        {
-            int i;
-            printf("Received message on channel \"%s\":\n", chan.c_str());
-            printf("  timestamp   = %lld\n", (long long)msg->timestamp);
-            printf("  position    = (%f, %f, %f)\n",
-                    msg->position[0], msg->position[1], msg->position[2]);
-            printf("  orientation = (%f, %f, %f, %f)\n",
-                    msg->orientation[0], msg->orientation[1], 
-                    msg->orientation[2], msg->orientation[3]);
-            printf("  ranges:");
-            for(i = 0; i < msg->num_ranges; i++)
-                printf(" %d", msg->ranges[i]);
-            printf("\n");
-            printf("  name        = '%s'\n", msg->name.c_str());
-            printf("  enabled     = %d\n", msg->enabled);
-        }
-*/
+    save_complete_received = true;
+    last_save_complete_msg = *msg;
+
+    rbuf = rbuf;
+}
+
+bool LcmHandler::checkSaveComplete(int& return_id)
+{
+    if (save_complete_received == false)
+    {
+        return false;
+    }
+
+    return_id = last_save_complete_msg.return_id;
+
+    save_complete_received = false;
+    return true;
+}

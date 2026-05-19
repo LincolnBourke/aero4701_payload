@@ -4,7 +4,6 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
-// #include <string>
 
 // States for the core controller state machine
 typedef enum State {
@@ -34,6 +33,7 @@ Payload::Payload()
 
     // Subscribe lcm handler to messages
     lcm.subscribe("RUN_COMMAND", &LcmHandler::handleRunCommand, &lcm_handler);
+    lcm.subscribe("SAVE_COMPLETE", &LcmHandler::handleSaveComplete, &lcm_handler);
 };
 
 Payload::~Payload(){};
@@ -168,20 +168,23 @@ void Payload::run()
             }
 
             break;
-        case SAVE_RESULTS: 
+        case SAVE_RESULTS:
             // Create a results file and save the servo angles across the trajectory
             // TODO
 
-            // Prompt the event camera node to save its results
+            // Prompt the event camera node to save its results and wait for confirmation
             publishCameraCommand(Commands::CameraCommandId::STOP_AND_SAVE);
 
-            // Wait for confirmation that the results have been saved
-            // TODO
+            if (waitForSaveComplete() == false)
+            {
+                state = ERROR;
+                std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+                break;
+            }
 
             // Let the OBC bridge know the experiment is complete and results file has been saved
-            publishRunResult(Commands::RunResult::SUCCESS);
+            publishRunResult(Commands::RunResult::RUN_SUCCESS);
 
-            // Automatically move back to IDLE if the results save successfully
             state = IDLE;
             std::cout << "[INFO] Payload controller state set to IDLE." << std::endl;
             break;
@@ -203,7 +206,7 @@ void Payload::run()
             std::cout << "[ERROR] " << error.msg << std::endl;
             
             // Let the OBC bridge know the experiment failed
-            publishRunResult(Commands::RunResult::FAIL);
+            publishRunResult(Commands::RunResult::RUN_FAIL);
 
             // Automatically move back to IDLE
             state = IDLE;
@@ -232,7 +235,32 @@ bool Payload::trackTrajectoryStep(bool &trajectory_complete)
 
 bool Payload::retractPlatform()
 {
-    return false; 
+    return false;
+}
+
+bool Payload::waitForSaveComplete()
+{
+    bool result = false;
+    int return_id;
+
+    while (lcm.getFileno() >= 0)
+    {
+        lcm.handle();
+
+        if (lcm_handler.checkSaveComplete(return_id))
+        {
+            if (return_id == Commands::SaveResult::SAVE_SUCCESS)
+                result = true;
+            else if (return_id == Commands::SaveResult::SAVE_FAIL)
+                error.msg = "Camera node failed to save results.";
+            else
+                error.msg = "Unknown return_id published to SAVE_COMPLETE.";
+
+            break;
+        }
+    }
+
+    return result;
 }
 
 

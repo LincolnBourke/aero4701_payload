@@ -14,3 +14,8 @@ struct camera_command_t
 {
     int8_t command_id;
 }
+
+struct save_complete_t
+{
+    int8_t return_id;
+}

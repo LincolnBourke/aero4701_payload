@@ -15,14 +15,20 @@ namespace Commands
 
     enum RunResult
     {
-        SUCCESS,
-        FAIL
+        RUN_SUCCESS,
+        RUN_FAIL
     };
 
     enum CameraCommandId
     {
         START_CAMERA,
         STOP_AND_SAVE
+    };
+
+    enum SaveResult
+    {
+        SAVE_SUCCESS,
+        SAVE_FAIL
     };
 }
 
