@@ -29,3 +29,10 @@ struct true_servo_angles_t
 {
     float angles[6];
 }
+
+struct servo_angs
+{
+    int64_t timestamp;
+    int32_t num_channels;
+    double position[num_channels]; 
+}

@@ -6,10 +6,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
-find_package(lcm REQUIRED)
 
+# LCM's installed cmake modules use cmake_minimum_required with versions < 3.5,
+# which triggers deprecation warnings in CMake 3.27+. Suppress for these calls.
+set(CMAKE_WARN_DEPRECATED OFF CACHE INTERNAL "")
+find_package(lcm REQUIRED)
 include(${LCM_USE_FILE})
+unset(CMAKE_WARN_DEPRECATED CACHE)
 
 lcm_add_library(payload_messages_lcm CPP lcm_messages/payloadMessages.lcm)
 
 add_subdirectory(apps/payload_controller)
+add_subdirectory(apps/servo_controller)
+add_subdirectory(apps/servo_monitor)
+add_subdirectory(apps/servo_state_reader)
