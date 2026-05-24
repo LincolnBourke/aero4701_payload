@@ -10,7 +10,7 @@
 #include <vector>
 #include <string>
 #include <lcm/lcm-cpp.hpp>
-#include "payload_messages/servo_angs.hpp"
+#include "payload_messages/servo_targets_t.hpp"
 
 class ServoController
 {
@@ -21,7 +21,7 @@ class ServoController
         // Handles incoming servo angle messages and writes targets to hardware.
         void handleServoAngMsg(const lcm::ReceiveBuffer* rbuf,
                                const std::string& chan,
-                               const payload_messages::servo_angs* msg);
+                               const payload_messages::servo_targets_t* msg);
 
         // Public LCM instance used by main to pump the message loop.
         lcm::LCM lcm;

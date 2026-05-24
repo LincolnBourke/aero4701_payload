@@ -7,6 +7,7 @@
 
 #define TRAJECTORY_FILE_STEP 5000 // ms, time between successive poses in the trajectory file
 #define TRAJECTORY_STRUCT_STEP 100 // ms, time between successive poses in the trajectory struct
+#define TRAJECTORY_FILE_PATH "../../../data/trajectory_simple.csv"
 
 // States for the core controller state machine
 typedef enum State {
@@ -23,7 +24,7 @@ typedef enum State {
 PayloadController::PayloadController()
     : lcm(), lcm_handler(), error(), platform(), trajectory_step(0), experiment_start_time()
 {
-    trajectory_path = "../data/trajectory_simple.csv";
+    trajectory_path = TRAJECTORY_FILE_PATH;
 
     if (!lcm.good())
     {
