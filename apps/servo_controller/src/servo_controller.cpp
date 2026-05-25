@@ -70,19 +70,31 @@ void ServoController::handleServoAngMsg(const lcm::ReceiveBuffer* rbuf,
     }
     std::cout << std::endl;
 
+    // PWM ranges from 384 - 3008
+    int mid_point = (3008 + 384) / 2;
+    int half_range = 3008 - mid_point;
+
     // Extract servo targets and convert to Maestro units
+    std::cout << "Maestro targets:";
     for (int i = 0; i < count; i++)
     {
         float float_target = msg->angles[i];
-        (void)float_target;
         
-        // Convert angle to maestro units
-        unsigned short maestro_target; // TODO: conversion logic  
-        (void)maestro_target;                       
-
+        // Conver the angle in radians to a PWM signal 
+        unsigned short maestro_target;
+        if (i % 2 == 1) // Odd - range max is up
+        {
+            maestro_target = mid_point + float_target * half_range / (M_PI/2);
+        }
+        else // Even - range max is down
+        {
+            maestro_target = mid_point - float_target * half_range / (M_PI/2);
+        }
+        std::cout << " s" << i << ": " << maestro_target;
         // Write to hardware
-        // _maestroSetTarget(i, maestro_target);
+        _maestroSetTarget(i, maestro_target);
     }
+    std::cout << std::endl;
 }
 
 // void ServoController::handleServoAngMsg(const lcm::ReceiveBuffer* rbuf,
