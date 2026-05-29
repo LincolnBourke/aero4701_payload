@@ -5,8 +5,8 @@
 #include <fstream>
 #include <sstream>
 
-#define TRAJECTORY_FILE_STEP 5000 // ms, time between successive poses in the trajectory file
-#define TRAJECTORY_STRUCT_STEP 100 // ms, time between successive poses in the trajectory struct
+#define TRAJECTORY_FILE_STEP 500 // ms, time between successive poses in the trajectory file
+#define TRAJECTORY_STRUCT_STEP 10 // ms, time between successive poses in the trajectory struct
 #define TRAJECTORY_FILE_PATH "../../../data/trajectory_simple.csv"
 
 // States for the core controller state machine

@@ -39,3 +39,7 @@ Run with:
 ```bash
 ./aero4701_payload
 ```
+
+
+## Notes
+Zero angles: [ 90.00, 180.00, 79.71, 180.00, 97.71, 180.00 ] 

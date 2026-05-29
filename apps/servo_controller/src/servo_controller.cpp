@@ -7,6 +7,9 @@
 #include <iomanip>
 #include <cmath>
 
+#define MAGIC_OFFSET 3000
+#define MAGIC_OFFSET_CORRECTION 700
+
 ServoController::ServoController(const char* device, int num_motors, const std::string& channel_name)
     : _num_motors(num_motors), _channel_name(channel_name) {
 
@@ -66,29 +69,40 @@ void ServoController::handleServoAngMsg(const lcm::ReceiveBuffer* rbuf,
     printf("Servo controller received message on %s, writing servo targets...", chan.c_str());
     for (int i = 0; i < count; i++)
     {
-        std::cout << " s" << i << ": " << msg->angles[i];
+        std::cout << " s" << i << ": " << msg->angles[i] * 180 / M_PI;
     }
     std::cout << std::endl;
 
     // PWM ranges from 384 - 3008
-    int mid_point = (3008 + 384) / 2;
-    int half_range = 3008 - mid_point;
+    // int mid_point = (3008 + 384) / 2;
+    // int half_range = 3008 - mid_point;
+
+    const int EVEN_MIN = 816;
+    const int EVEN_MAX = 3008;
+    const int ODD_MIN = 384;
+    const int ODD_MAX = 2112;
+    int even_centre = (EVEN_MAX + EVEN_MIN) / 2;
+    int odd_centre = (ODD_MAX + ODD_MIN) / 2;
+    int even_units_per_radian = (EVEN_MAX - EVEN_MIN) / M_PI;
+    int odd_units_per_radian = (ODD_MAX - ODD_MIN) / M_PI;
 
     // Extract servo targets and convert to Maestro units
     std::cout << "Maestro targets:";
     for (int i = 0; i < count; i++)
     {
-        float float_target = msg->angles[i];
+        float angle_rad = msg->angles[i];
         
         // Conver the angle in radians to a PWM signal 
         unsigned short maestro_target;
         if (i % 2 == 1) // Odd - range max is up
         {
-            maestro_target = mid_point + float_target * half_range / (M_PI/2);
+            // maestro_target = mid_point + float_target * half_range / (M_PI/2) + MAGIC_OFFSET;
+            maestro_target = odd_centre + angle_rad * odd_units_per_radian;
         }
         else // Even - range max is down
         {
-            maestro_target = mid_point - float_target * half_range / (M_PI/2);
+            // maestro_target = mid_point - float_target * half_range / (M_PI/2) + MAGIC_OFFSET + MAGIC_OFFSET_CORRECTION;
+            maestro_target = even_centre - angle_rad * even_units_per_radian;
         }
         std::cout << " s" << i << ": " << maestro_target;
         // Write to hardware
@@ -136,6 +150,8 @@ void ServoController::handleServoAngMsg(const lcm::ReceiveBuffer* rbuf,
 
 void ServoController::_maestroSetTarget(unsigned char channel, unsigned short target) {
     if (_fd == -1) return;
+
+    target = target * 4; // Converting milliseconds to quarter microseconds
 
     unsigned char command[] = {
         0x84,

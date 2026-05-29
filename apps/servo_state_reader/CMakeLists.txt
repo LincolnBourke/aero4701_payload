@@ -10,8 +10,7 @@ target_include_directories(servo_state_reader PRIVATE
 )
 
 target_link_libraries(servo_state_reader PRIVATE
-    ${LCM_NAMESPACE}lcm
-    payload_messages_lcm
+    PkgConfig::lcm
 )
 
 target_compile_options(servo_state_reader PRIVATE -Werror -Wall -Wextra)

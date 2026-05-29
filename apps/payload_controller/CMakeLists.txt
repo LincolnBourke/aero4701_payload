@@ -14,8 +14,7 @@ target_include_directories(payload_controller PRIVATE
 
 target_link_libraries(payload_controller PRIVATE
     Eigen3::Eigen
-    ${LCM_NAMESPACE}lcm
-    payload_messages_lcm
+    PkgConfig::lcm
 )
 
 target_compile_options(payload_controller PRIVATE -Werror -Wall -Wextra)
@@ -33,8 +32,7 @@ target_include_directories(test_kinematics_closure PRIVATE
 
 target_link_libraries(test_kinematics_closure PRIVATE
     Eigen3::Eigen
-    ${LCM_NAMESPACE}lcm
-    payload_messages_lcm
+    PkgConfig::lcm
 )
 
 add_executable(test_lcm_publisher tests/test_lcm_publisher.cpp)
@@ -45,6 +43,5 @@ target_include_directories(test_lcm_publisher PRIVATE
 )
 
 target_link_libraries(test_lcm_publisher PRIVATE
-    ${LCM_NAMESPACE}lcm
-    payload_messages_lcm
+    PkgConfig::lcm
 )

@@ -10,8 +10,7 @@ target_include_directories(servo_controller PRIVATE
 )
 
 target_link_libraries(servo_controller PRIVATE
-    ${LCM_NAMESPACE}lcm
-    payload_messages_lcm
+    PkgConfig::lcm
 )
 
 target_compile_options(servo_controller PRIVATE -Werror -Wall -Wextra)
