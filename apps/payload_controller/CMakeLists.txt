@@ -20,7 +20,7 @@ target_link_libraries(payload_controller PRIVATE
 target_compile_options(payload_controller PRIVATE -Werror -Wall -Wextra)
 
 add_executable(test_kinematics_closure
-    tests/test_kinematics_closure.cpp
+    tests/testKinematicsClosure.cpp
     src/stewartPlatform.cpp
     src/servoMotor.cpp
 )
@@ -35,7 +35,9 @@ target_link_libraries(test_kinematics_closure PRIVATE
     PkgConfig::lcm
 )
 
-add_executable(test_lcm_publisher tests/test_lcm_publisher.cpp)
+add_executable(test_lcm_publisher 
+    tests/testLcmPublisher.cpp
+)
 
 target_include_directories(test_lcm_publisher PRIVATE
     include

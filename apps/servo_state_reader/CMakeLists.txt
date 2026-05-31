@@ -1,6 +1,6 @@
 add_executable(servo_state_reader
     src/main.cpp
-    src/servo_state_reader.cpp
+    src/servoStateReader.cpp
 )
 
 target_include_directories(servo_state_reader PRIVATE

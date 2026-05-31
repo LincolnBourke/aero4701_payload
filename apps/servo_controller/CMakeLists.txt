@@ -1,6 +1,6 @@
 add_executable(servo_controller
     src/main.cpp
-    src/servo_controller.cpp
+    src/servoController.cpp
 )
 
 target_include_directories(servo_controller PRIVATE

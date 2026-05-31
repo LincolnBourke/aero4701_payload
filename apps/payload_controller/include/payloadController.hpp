@@ -22,6 +22,17 @@ typedef struct {
     std::vector<float> times;
 } trajectory_t;
 
+// Define the states for the core payload controller state machine
+typedef enum State {
+    IDLE,           // Waits for command to start an experiment
+    SETUP,          // Reads the trajectory file + calibrates servos
+    DEPLOY,         // Deploys the docking port to the starting position
+    RUNNING,        // Runs the experiment
+    SAVE_RESULTS,   // Saves experiment data and tells the camera node to do the same
+    TERMINATE_RUN,  // Moves the platform back to the home position 
+    ERROR,          // Publishes an erroneous run result
+} state_t;
+
 // Define the error processed by the ERROR state
 typedef struct {
     std::string msg; // Error message 
@@ -85,6 +96,15 @@ class PayloadController
         // Block until a save_complete message is received from the camera node.
         // Return value indicates if the save was successful.
         bool waitForSaveComplete();
+
+        // --- State methods ---------------------------------------------------
+        state_t handleIdleState();
+        state_t handleSetupState();
+        state_t handleDeployState();
+        state_t handleRunningState();
+        state_t handleSaveResultsState();
+        state_t handleTerminateRunState();
+        state_t handleErrorState();
 
         // --- LCM publisher methods -------------------------------------------
         void publishCameraCommand(int8_t command_id);
