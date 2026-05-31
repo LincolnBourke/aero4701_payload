@@ -3,8 +3,8 @@
 ## LIBRARIES
 import cv2 as cv
 import glob
-import camera_helper as h
-import lcm_helper as lcm_h
+import cameraHelper as h
+import lcmHelper as lcm_h
 
 # TODO put helper functions into class definition?
 # TODO make header for class definition?
@@ -296,7 +296,7 @@ while True:
 # ## LIBRARIES
 # import cv2 as cv
 # import glob
-# import camera_helper as h
+# import cameraHelper as h
 # import lcm_helper as lcm_h
 
 # # TODO put helper functions into class definition
@@ -579,7 +579,7 @@ while True:
 # ## LIBRARIES
 # import cv2 as cv
 # import glob
-# import camera_helper as h
+# import cameraHelper as h
 # import lcm_helper as lcm_h
 
 
@@ -860,7 +860,7 @@ while True:
 # ## LIBRARIES
 # import cv2 as cv
 # import glob
-# import camera_helper as h
+# import cameraHelper as h
 # import lcm_helper as lcm_h
 
 

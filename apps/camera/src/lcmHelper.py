@@ -1,5 +1,5 @@
 import lcm
-from exlcm import payload_cont_to_cam_msg_t, cam_msg_t
+from payload_messages import payload_cont_to_cam_msg_t, cam_msg_t
 
 # Subscribe to and wait for msg from payload computer
 def wait_for_payload_comp_msg():
