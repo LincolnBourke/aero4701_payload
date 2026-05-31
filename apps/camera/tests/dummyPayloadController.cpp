@@ -19,8 +19,8 @@
 
 
 #include <lcm/lcm-cpp.hpp>
-#include "exlcm/payload_cont_to_cam_msg_t.hpp"
-#include "exlcm/cam_msg_t.hpp"
+#include "payload_messages/payload_cont_to_cam_msg_t.hpp"
+#include "payload_messages/cam_msg_t.hpp"
 
 // States for the core controller state machine
 typedef enum State {
@@ -57,7 +57,7 @@ public:
     bool cam_status          = false;
  
     void handleCamMsg(const lcm::ReceiveBuffer*, const std::string&,
-                      const exlcm::cam_msg_t* msg)
+                      const payload_messages::cam_msg_t* msg)
     {
         cam_status_received = true;
         cam_status          = msg->cam_status;
@@ -258,7 +258,7 @@ private:
     // Publish current controller state + debug_mode to camera
     void publishCameraCommand(state_t state, bool debug_mode)
     {
-        exlcm::payload_cont_to_cam_msg_t msg;
+        payload_messages::payload_cont_to_cam_msg_t msg;
         msg.cont_state = static_cast<int8_t>(state);
         msg.debug_mode = debug_mode;
         lcm_.publish(CH_CONT_TO_CAM, &msg);
