@@ -24,13 +24,15 @@ typedef struct {
 
 // Define the states for the core payload controller state machine
 typedef enum State {
-    IDLE,           // Waits for command to start an experiment
-    SETUP,          // Reads the trajectory file + calibrates servos
-    DEPLOY,         // Deploys the docking port to the starting position
-    RUNNING,        // Runs the experiment
-    SAVE_RESULTS,   // Saves experiment data and tells the camera node to do the same
-    TERMINATE_RUN,  // Moves the platform back to the home position 
-    ERROR,          // Publishes an erroneous run result
+    IDLE,               // Waits for command to start an experiment
+    READ_TRAJECTORY,    // Reads the trajectory file & converts to interpolated servo angles 
+    CALIBRATE_SERVOS,   // Uses limit switches to calibrate servos
+    CALIBRATE_CAMERA,   // Moves platform to let camera node calibrate
+    DEPLOY,             // Deploys the docking port to the starting position
+    RUNNING,            // Runs the experiment
+    SAVE_RESULTS,       // Saves experiment data and tells the camera node to do the same
+    TERMINATE_RUN,      // Moves the platform back to the home position 
+    ERROR,              // Publishes an erroneous run result
 } state_t;
 
 // Define the error processed by the ERROR state
@@ -99,7 +101,9 @@ class PayloadController
 
         // --- State methods ---------------------------------------------------
         state_t handleIdleState();
-        state_t handleSetupState();
+        state_t handleReadTrajectoryState();
+        state_t handleCalibrateServosState();
+        state_t handleCalibrateCameraState();
         state_t handleDeployState();
         state_t handleRunningState();
         state_t handleSaveResultsState();

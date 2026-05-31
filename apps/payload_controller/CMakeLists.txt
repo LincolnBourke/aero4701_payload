@@ -35,15 +35,15 @@ target_link_libraries(test_kinematics_closure PRIVATE
     PkgConfig::lcm
 )
 
-add_executable(test_lcm_publisher 
-    tests/testLcmPublisher.cpp
+add_executable(run_controller 
+    tests/publishRunController.cpp
 )
 
-target_include_directories(test_lcm_publisher PRIVATE
+target_include_directories(run_controller PRIVATE
     include
     ${CMAKE_SOURCE_DIR}/lcm_messages/payload_messages
 )
 
-target_link_libraries(test_lcm_publisher PRIVATE
+target_link_libraries(run_controller PRIVATE
     PkgConfig::lcm
 )

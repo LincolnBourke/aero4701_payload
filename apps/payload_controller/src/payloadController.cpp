@@ -6,7 +6,7 @@
 #include <sstream>
 
 #define TRAJECTORY_FILE_STEP 500 // ms, time between successive poses in the trajectory file
-#define TRAJECTORY_STRUCT_STEP 100 // ms, time between successive poses in the trajectory struct
+#define TRAJECTORY_STRUCT_STEP 250 // ms, time between successive poses in the trajectory struct
 #define TRAJECTORY_FILE_PATH "data/trajectory_simple.csv"
 
 
@@ -39,8 +39,14 @@ void PayloadController::run()
         case IDLE:
             state = handleIdleState();
             break;
-        case SETUP:
-            state = handleSetupState();
+        case READ_TRAJECTORY:
+            state = handleReadTrajectoryState();
+            break;
+        case CALIBRATE_SERVOS:
+            state = handleCalibrateServosState();    
+            break;
+        case CALIBRATE_CAMERA:
+            state = handleCalibrateCameraState();
             break;
         case DEPLOY:
             state = handleDeployState();
@@ -67,7 +73,6 @@ void PayloadController::run()
 
 state_t PayloadController::handleIdleState()
 {
-    state_t next_state = IDLE;
     int command_id; 
 
     // Check if a run command has been published
@@ -77,36 +82,50 @@ state_t PayloadController::handleIdleState()
         // Only move to setup when start command received
         if (command_id == Commands::RunId::RUN_CONTROLLER)
         {
-            next_state = SETUP;
-            std::cout << "[INFO] Payload controller state set to SETUP." << std::endl;
+            std::cout << "[INFO] Payload controller state set to READ_TRAJECTORY." << std::endl;
+            return READ_TRAJECTORY;
         }
     }
 
-    return next_state;
+    return IDLE;
 }
 
-state_t PayloadController::handleSetupState()
+state_t PayloadController::handleReadTrajectoryState()
 {
-    state_t next_state = SETUP;
-
     // Read the trajectory file, interpolate, and compute servo angles
     if (buildTrajectory() == false)
     {
-        next_state = ERROR;
         std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
-    }
-    else
-    {
-        // Calibrate the servos
-        // TODO
-
-        // Automatically transition to deploy when the setup steps succeed
-        next_state = DEPLOY;
-        std::cout << "[INFO] Payload controller state set to DEPLOY." << std::endl;
+        return ERROR;
     }
 
-    return next_state;
+    // Automatically transition to servo calibration when the trajectory can be read
+    std::cout << "[INFO] Payload controller state set to CALIBRATE_SERVOS." << std::endl;
+    return CALIBRATE_SERVOS;
 }
+
+state_t PayloadController::handleCalibrateServosState()
+{
+    // TODO
+
+    // Automatically transition to camera calibration when the servos are calibrated
+    std::cout << "[INFO] Payload controller state set to CALIBRATE_CAMERA." << std::endl;
+    return CALIBRATE_CAMERA;
+}
+
+state_t PayloadController::handleCalibrateCameraState()
+{
+    // Start camera nodes
+    publishCameraCommand(Commands::CameraCommandId::START_CAMERA);
+
+    // TODO: calibrate camera commands
+
+    // Automatically deploy platform when camera has been calibrated
+    std::cout << "[INFO] Payload controller state set to DEPLOY." << std::endl;
+    return DEPLOY;
+}
+
+
 
 state_t PayloadController::handleDeployState()
 {
@@ -135,9 +154,6 @@ state_t PayloadController::handleDeployState()
     // Check if the platform is fully deployed before moving to RUNNING
     if (platform_deployed == true)
     {
-        // Start camera nodes
-        publishCameraCommand(Commands::CameraCommandId::START_CAMERA);
-
         std::cout << "[INFO] Payload controller state set to RUNNING." << std::endl;
         experiment_start_time = std::chrono::steady_clock::now(); // Start timing experiment
         trajectory_step = 0; // Track trajectory from the start
