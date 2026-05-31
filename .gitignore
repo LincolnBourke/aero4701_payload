@@ -1,3 +1,4 @@
-.vscode/*
 build/*
-lcm_definitions/payload_topics/*
+data/*
+lcm_messages/payload_messages/*
+.vscode/settings.json

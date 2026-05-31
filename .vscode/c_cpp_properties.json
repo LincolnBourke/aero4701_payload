@@ -1,0 +1,23 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/apps/payload_controller/include",
+                "${workspaceFolder}/apps/servo_controller/include",
+                "${workspaceFolder}/apps/servo_monitor/include",
+                "${workspaceFolder}/apps/servo_state_reader/include",
+                "${workspaceFolder}/lcm_messages",
+                "${workspaceFolder}/lcm_messages/payload_messages",
+                "/usr/include",
+                "/usr/include/eigen3"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/g++",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-gcc-x64"
+        }
+    ],
+    "version": 4
+}

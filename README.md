@@ -1,33 +1,31 @@
 # AERO4701 Payload
 
-Implements control code for the Stewart platform payload. 
-
-<!-- ## Features
-- **Modern C++**: Built using C++17/20 standards. -->
+Implements all code required for a satellite payload that simulates docking using a Stewart platform.
+This includes: 
+- Stewart platform control: kinematics, trajectory tracking and servo control. 
+- Platform pose estimation: event camera image processing pipeline. 
 
 ## Requirements
 <!-- - CMake 3.16 or higher -->
 - C++17 compatible compiler
 - Eigen3 (>= 3.3)
-- LCM
+- Lightweight communications and marshalling
 
 Required packages can be installed with:
     
 ```sh
-sudo apt install libeigen3-dev liblcm-dev
+sudo apt-get install libeigen3-dev liblcm-dev
 ```
 
 ## Build Instructions
-In order to use the LCM topics, language specific bindings must be created. 
-Generate these for C++ and Python with,
+Generate LCM message files for C++ and Python scripts. From the project directory: 
 
 ```bash
-cd lcm_definitions
-lcm-gen -x payload_topics.lcm
-lcm-gen -p payload_topics.lcm
+cd lcm_messages
+lcm-gen -x -p payloadMessages.lcm
 ```
 
-Then to build the project, navigate back to the top level directory, create a build directory and run cmake:
+Create directory for build files and run cmake. From the project directory:
 
 ```bash
 cd ..
@@ -37,8 +35,22 @@ cmake ..
 cmake --build .
 ```
 
-Run with:
+## Running Apps
+
+All apps are run from the root directory.
+
+C++ apps are run from an entry point with the same name as the app:  
 
 ```bash
-./payload
+./build/apps/<app_name>/<app_name>
 ```
+
+Python apps may have a different entry point name and are not located in build/:
+
+```bash 
+python apps/<app_name>/<entry_point>.py
+```
+
+
+## Notes
+Zero angles: [ 90.00, 180.00, 79.71, 180.00, 97.71, 180.00 ] 
