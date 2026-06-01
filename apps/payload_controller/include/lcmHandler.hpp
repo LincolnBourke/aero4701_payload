@@ -49,6 +49,10 @@ class LcmHandler
         
         // Reset to clear for camera communications
         void reset();
+        
+        // Getters for receiving and contents of camera status
+        bool isCamStatusReceived() const { return cam_status_received; }
+        bool getCamStatus() const { return last_cam_msg.cam_status; }
 };
 
 #endif

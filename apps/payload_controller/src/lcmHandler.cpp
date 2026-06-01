@@ -60,7 +60,7 @@ bool LcmHandler::checkSaveComplete(int& return_id)
     return true;
 }
 
-// no longer needed but leaving in case (Ollie)
+// // no longer needed? but leaving in case 
 // bool LcmHandler::checkCamStatus(bool& cam_status)
 // {
 //     if (cam_status_received == false)
@@ -73,6 +73,17 @@ bool LcmHandler::checkSaveComplete(int& return_id)
 //     cam_status_received = false;
 //     return true;
 // }
+
+void LcmHandler::handleCamMsg(const lcm::ReceiveBuffer* rbuf,
+    const std::string& channel, const payload_messages::cam_msg_t* msg)
+{
+    printf("[INFO] Received message on channel %s with cam_status %d\n", channel.c_str(), (int)msg->cam_status);
+
+    cam_status_received = true;
+    last_cam_msg = *msg;
+
+    rbuf = rbuf;
+}
 
 void LcmHandler::reset()
 {

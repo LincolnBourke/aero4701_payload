@@ -351,7 +351,7 @@ bool PayloadController::retractPlatform()
     return false;
 }
 
-// Replaced with waitForCamStatus, but leaving in case needs to be brough back
+// Replaced with waitForCamStatus, but leaving in case needs to be brought back
 // bool PayloadController::waitForSaveComplete()
 // {
 //     bool result = false;
@@ -639,7 +639,7 @@ bool PayloadController::waitForCamStatus(int timeout_ms)
     lcm_handler.reset();
     auto start = std::chrono::steady_clock::now();
 
-    while (!lcm_handler.cam_status_received)
+    while (!lcm_handler.isCamStatusReceived())
     {
         lcm.handleTimeout(100);
 
@@ -653,7 +653,7 @@ bool PayloadController::waitForCamStatus(int timeout_ms)
         }
     }
 
-    if (!lcm_handler.cam_status)
+    if (!lcm_handler.getCamStatus())
     {
         error.msg = "Camera reported failure.";
         return false;

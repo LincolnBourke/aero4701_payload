@@ -9,6 +9,7 @@
 #include "lcmHandler.hpp"
 #include "camera_command_t.hpp"
 #include "run_result_t.hpp"
+#include "payload_cont_to_cam_msg_t.hpp"
 
 #include <lcm/lcm-cpp.hpp>
 #include <string>
