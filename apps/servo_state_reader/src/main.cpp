@@ -1,4 +1,4 @@
-#include "servo_state_reader.hpp"
+#include "servoStateReader.hpp"
 #include <unistd.h>
 
 int main()

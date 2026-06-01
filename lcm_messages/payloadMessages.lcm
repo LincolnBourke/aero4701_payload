@@ -1,5 +1,16 @@
 package payload_messages;
 
+struct payload_cont_to_cam_msg_t
+{
+    int8_t  cont_state; // change to contain numbers 0 to 7 (enums)
+    boolean  debug_mode; // TRUE for debug_mode, FALSE for normal operation
+}
+
+struct cam_msg_t
+{
+    boolean  cam_status; // TRUE for complete, FALSE for error
+}
+
 struct run_command_t
 {
     int8_t command_id;

@@ -8,11 +8,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 
 # LCM's installed cmake modules use cmake_minimum_required with versions < 3.5,
-# which triggers deprecation warnings in CMake 3.27+. Suppress for these calls.
+# which triggers deprecation warnings in CMake 3.27+. Suppress for LCM import.
 set(CMAKE_WARN_DEPRECATED OFF CACHE INTERNAL "")
 # find_package(lcm REQUIRED)
 # include(${LCM_USE_FILE})
 
+# Required to use PkgConfig on Raspberry Pi linux version due to old 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(lcm REQUIRED IMPORTED_TARGET lcm)
 
@@ -25,3 +26,4 @@ add_subdirectory(apps/payload_controller)
 add_subdirectory(apps/servo_controller)
 add_subdirectory(apps/servo_monitor)
 add_subdirectory(apps/servo_state_reader)
+add_subdirectory(apps/camera)

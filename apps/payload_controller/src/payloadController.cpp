@@ -6,21 +6,13 @@
 #include <sstream>
 
 #define TRAJECTORY_FILE_STEP 500 // ms, time between successive poses in the trajectory file
-#define TRAJECTORY_STRUCT_STEP 10 // ms, time between successive poses in the trajectory struct
-// #define TRAJECTORY_FILE_PATH "~/Documents/aero4701_payload/data/trajectory_simple.csv" // "../../../data/trajectory_simple.csv" // 
-#define TRAJECTORY_FILE_PATH "../../../data/trajectory_simple.csv" 
+#define TRAJECTORY_STRUCT_STEP 250 // ms, time between successive poses in the trajectory struct
+#define TRAJECTORY_FILE_PATH "data/trajectory_simple.csv"
 
-// States for the core controller state machine
-typedef enum State {
-    IDLE,           // Waits for command to start an experiment
-    SETUP,          // Reads the trajectory file + calibrates servos
-    DEPLOY,         // Deploys the docking port to the starting position
-    RUNNING,        // Runs the experiment
-    SAVE_RESULTS,   // Saves experiment data and tells the camera node to do the same
-    TERMINATE_RUN,  // Moves the platform back to the home position 
-    ERROR,          // Publishes an erroneous run result
-} state_t;
-
+#define CALIBRATION_END_POINT_STEP 5000 // ms
+#define CALIBRATION_STRUCT_STEP 20 // ms
+#define CALIBRATION_START_Z 15 // mm
+#define CALIBRATION_END_Z 0 // mm
 
 PayloadController::PayloadController()
     : lcm(), lcm_handler(), error(), platform(), trajectory_step(0), experiment_start_time()
@@ -39,163 +31,261 @@ PayloadController::PayloadController()
 
 PayloadController::~PayloadController(){};
 
+// Runs the core state machine for the payload controller
 void PayloadController::run()
 {
     state_t state = IDLE;
-    int command_id;
-    bool platform_deployed, trajectory_complete;
     
     while (true)
     {
         switch (state)
         {
         case IDLE:
-            // Check if a run command has been published
-            lcm.handleTimeout(0);
-            if (lcm_handler.checkRunCommand(command_id))
-            {
-                // Only move to setup when start command received
-                if (command_id == Commands::RunId::RUN_CONTROLLER)
-                {
-                    state = SETUP;
-                    std::cout << "[INFO] Payload controller state set to SETUP." << std::endl;
-                    break;
-                }
-            }
-
+            state = handleIdleState();
             break;
-        case SETUP:
-            // Read the trajectory file, interpolate, and compute servo angles
-            if (buildTrajectory() == false)
-            {
-                state = ERROR;
-                std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
-                break;
-            }
-
-            // Calibrate the servos
-            // TODO
-
-            // Automatically transition to deploy when the setup steps succeed
-            state = DEPLOY;
-            std::cout << "[INFO] Payload controller state set to DEPLOY." << std::endl;
-            break; 
-        case DEPLOY: 
-            // Make an incremental step to move the platform to the starting position
-            if (deployPlatformStep(platform_deployed) == false)
-            {
-                error.msg = "Could not deploy platform.";
-                state = ERROR;
-                std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
-                break;
-            }
-            
-            // Check if a message has been published to stop the experiment early
-            lcm.handleTimeout(0);
-            if (lcm_handler.checkRunCommand(command_id))
-            {
-                if (command_id == Commands::RunId::STOP_CONTROLLER)
-                {
-                    state = TERMINATE_RUN;
-                    std::cout << "[INFO] Payload controller state set to TERMINATE_RUN." << std::endl;
-                    break;
-                }
-            }
-
-            // Check if the platform is fully deployed before moving to RUNNING
-            if (platform_deployed == true)
-            {
-                // Start camera nodes
-                publishCameraCommand(Commands::CameraCommandId::START_CAMERA);
-
-                state = RUNNING;
-                std::cout << "[INFO] Payload controller state set to RUNNING." << std::endl;
-                experiment_start_time = std::chrono::steady_clock::now(); // Start timing experiment
-                trajectory_step = 0; // Track trajectory from the start 
-                break;
-            }
-
+        case READ_TRAJECTORY:
+            state = handleReadTrajectoryState();
             break;
-        case RUNNING: 
-            // Make an incremental step to move the platform along the trajectory
-            if (trackTrajectoryStep(trajectory_complete) == false)
-            {
-                error.msg = "Failure while tracking trajectory.";
-                state = ERROR;
-                std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
-                break;
-            }
-
-            // Check if a message has been published to stop the experiment early
-            lcm.handleTimeout(0);
-            if (lcm_handler.checkRunCommand(command_id))
-            {
-                if (command_id == Commands::RunId::STOP_CONTROLLER)
-                {
-                    state = TERMINATE_RUN;
-                    std::cout << "[INFO] Payload controller state set to TERMINATE_RUN." << std::endl;
-                    break;
-                }
-            }
-
-            // Check if the trajectory is complete before moving to SAVE_RESULTS
-            if (trajectory_complete == true)
-            {
-                state = SAVE_RESULTS;
-                std::cout << "[INFO] Payload controller state set to SAVE_RESULTS." << std::endl;
-                break;
-            }
-
+        case CALIBRATE_SERVOS:
+            state = handleCalibrateServosState();    
+            break;
+        case CALIBRATE_CAMERA:
+            state = handleCalibrateCameraState();
+            break;
+        case DEPLOY:
+            state = handleDeployState();
+            break;
+        case RUNNING:
+            state = handleRunningState();
             break;
         case SAVE_RESULTS:
-            // Create a results file and save the servo angles across the trajectory
-            // TODO
-
-            // Prompt the event camera node to save its results and wait for confirmation
-            publishCameraCommand(Commands::CameraCommandId::STOP_AND_SAVE);
-
-            if (waitForSaveComplete() == false)
-            {
-                state = ERROR;
-                std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
-                break;
-            }
-
-            // Let the OBC bridge know the experiment is complete and results file has been saved
-            publishRunResult(Commands::RunResult::RUN_SUCCESS);
-
-            state = IDLE;
-            std::cout << "[INFO] Payload controller state set to IDLE." << std::endl;
+            state = handleSaveResultsState();
             break;
         case TERMINATE_RUN:
-            if (retractPlatform() == false)
-            {
-                error.msg = "Failed to retract the platform automatically.";
-                state = ERROR;
-                std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
-                break;
-            }
-
-            // Automatically move back to IDLE
-            state = IDLE;
-            std::cout << "[INFO] Payload controller state set to IDLE." << std::endl;
+            state = handleTerminateRunState();
             break;
-        case ERROR: 
-            // TODO: determine if the error message should be used elsewhere
-            std::cout << "[ERROR] " << error.msg << std::endl;
-            
-            // Let the OBC bridge know the experiment failed
-            publishRunResult(Commands::RunResult::RUN_FAIL);
-
-            // Automatically move back to IDLE
-            state = IDLE;
-            std::cout << "[INFO] Payload controller state set to IDLE." << std::endl;
+        case ERROR:
+            state = handleErrorState();
             break;
         default: 
             std::cout << "[ERROR] Payload controller entered invalid state." << std::endl;
         }
     }
 }
+
+// --- State logic -------------------------------------------------------------
+
+state_t PayloadController::handleIdleState()
+{
+    int command_id; 
+
+    // Check if a run command has been published
+    lcm.handleTimeout(0);
+    if (lcm_handler.checkRunCommand(command_id))
+    {
+        // Only move to setup when start command received
+        if (command_id == Commands::RunId::RUN_CONTROLLER)
+        {
+            std::cout << "[INFO] Payload controller state set to READ_TRAJECTORY." << std::endl;
+            return READ_TRAJECTORY;
+        }
+    }
+
+    return IDLE;
+}
+
+state_t PayloadController::handleReadTrajectoryState()
+{
+    // Read the trajectory file, interpolate, and compute servo angles
+    if (buildTrajectory() == false)
+    {
+        std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+        return ERROR;
+    }
+
+    // Automatically transition to servo calibration when the trajectory can be read
+    std::cout << "[INFO] Payload controller state set to CALIBRATE_SERVOS." << std::endl;
+    return CALIBRATE_SERVOS;
+}
+
+state_t PayloadController::handleCalibrateServosState()
+{   
+    // Max and min z values scanned during calibration
+    const float max_z = 12.5; // mm
+    const float min_z = 0.0; // mm
+
+    // Generate the start and end positions for the servo calibration
+    PlatformPose start_pose = PlatformPose{Vector3f::Zero(), Quaternionf::Identity()};
+    PlatformPose end_pose = PlatformPose{Vector3f::Zero(), Quaternionf::Identity()}; 
+    start_pose.position(2) = max_z;
+    end_pose.position(2) = min_z;
+    std::vector<PlatformPose> end_points = {start_pose, end_pose};
+
+    // Generate trajectory between positions
+    trajectory_t calibration_trajectory;
+    bool success = interpolateTrajectory(end_points, calibration_trajectory, CALIBRATION_END_POINT_STEP, CALIBRATION_STRUCT_STEP);
+    if (success == false)
+    {
+        error.msg = "Could not generate calibration trajectory.";
+        std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+        return ERROR;
+    }
+
+    // Lower platform along trajectory until limit switches activate 
+    for (size_t i = 0; i < calibration_trajectory.times.size(); i++)
+    {   
+        // Check if the limit switches have activated
+        // TODO
+
+        // Move platform along trajectory
+        if (platform.moveTo(calibration_trajectory.poses[i]) == false)
+        {
+            error.msg = "Could not move platform to starting pose during servo calibration.";
+            std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+            return ERROR;
+        }
+    }
+    
+    // Set calibration offset for the Stewart platform
+    // TODO
+
+    // Automatically transition to camera calibration when the servos are calibrated
+    std::cout << "[INFO] Payload controller state set to CALIBRATE_CAMERA." << std::endl;
+    return CALIBRATE_CAMERA;
+}
+
+state_t PayloadController::handleCalibrateCameraState()
+{
+    // Start camera nodes
+    publishCameraCommand(Commands::CameraCommandId::START_CAMERA);
+
+    // TODO: calibrate camera commands
+
+    // Automatically deploy platform when camera has been calibrated
+    std::cout << "[INFO] Payload controller state set to DEPLOY." << std::endl;
+    return DEPLOY;
+}
+
+
+
+state_t PayloadController::handleDeployState()
+{
+    bool platform_deployed;
+    int command_id;
+
+    // Make an incremental step to move the platform to the starting position
+    if (deployPlatformStep(platform_deployed) == false)
+    {
+        error.msg = "Could not deploy platform.";
+        std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+        return ERROR;
+    }
+
+    // Check if a message has been published to stop the experiment early
+    lcm.handleTimeout(0);
+    if (lcm_handler.checkRunCommand(command_id))
+    {
+        if (command_id == Commands::RunId::STOP_CONTROLLER)
+        {
+            std::cout << "[INFO] Payload controller state set to TERMINATE_RUN." << std::endl;
+            return TERMINATE_RUN;
+        }
+    }
+
+    // Check if the platform is fully deployed before moving to RUNNING
+    if (platform_deployed == true)
+    {
+        std::cout << "[INFO] Payload controller state set to RUNNING." << std::endl;
+        experiment_start_time = std::chrono::steady_clock::now(); // Start timing experiment
+        trajectory_step = 0; // Track trajectory from the start
+        return RUNNING;
+    }
+
+    return DEPLOY;
+}
+
+state_t PayloadController::handleRunningState()
+{
+    bool trajectory_complete;
+    int command_id;
+
+    // Make an incremental step to move the platform along the trajectory
+    if (trackTrajectoryStep(trajectory_complete) == false)
+    {
+        error.msg = "Failure while tracking trajectory.";
+        std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+        return ERROR;
+    }
+
+    // Check if a message has been published to stop the experiment early
+    lcm.handleTimeout(0);
+    if (lcm_handler.checkRunCommand(command_id))
+    {
+        if (command_id == Commands::RunId::STOP_CONTROLLER)
+        {
+            std::cout << "[INFO] Payload controller state set to TERMINATE_RUN." << std::endl;
+            return TERMINATE_RUN;
+        }
+    }
+
+    // Check if the trajectory is complete before moving to SAVE_RESULTS
+    if (trajectory_complete == true)
+    {
+        std::cout << "[INFO] Payload controller state set to SAVE_RESULTS." << std::endl;
+        return SAVE_RESULTS;
+    }
+
+    return RUNNING;
+}
+
+state_t PayloadController::handleSaveResultsState()
+{
+    // Create a results file and save the servo angles across the trajectory
+    // TODO
+
+    // Prompt the event camera node to save its results and wait for confirmation
+    publishCameraCommand(Commands::CameraCommandId::STOP_AND_SAVE);
+
+    if (waitForSaveComplete() == false)
+    {
+        std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+        return ERROR;
+    }
+
+    // Let the OBC bridge know the experiment is complete and results file has been saved
+    publishRunResult(Commands::RunResult::RUN_SUCCESS);
+
+    std::cout << "[INFO] Payload controller state set to IDLE." << std::endl;
+    return IDLE;
+}
+
+state_t PayloadController::handleTerminateRunState()
+{
+    if (retractPlatform() == false)
+    {
+        error.msg = "Failed to retract the platform automatically.";
+        std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+        return ERROR;
+    }
+
+    // Automatically move back to IDLE
+    std::cout << "[INFO] Payload controller state set to IDLE." << std::endl;
+    return IDLE;
+}
+
+state_t PayloadController::handleErrorState()
+{
+    // TODO: determine if the error message should be used elsewhere
+    std::cout << "[ERROR] " << error.msg << std::endl;
+
+    // Let the OBC bridge know the experiment failed
+    publishRunResult(Commands::RunResult::RUN_FAIL);
+
+    // Automatically move back to IDLE
+    std::cout << "[INFO] Payload controller state set to IDLE." << std::endl;
+    return IDLE;
+}
+
 
 // --- Trajectory tracking -----------------------------------------------------
 
@@ -356,7 +446,10 @@ bool PayloadController::writeAnglesToFile(std::string file_path)
 
 // --- Trajectory building -----------------------------------------------------
 
-bool PayloadController::interpolateTrajectory(const std::vector<PlatformPose>& raw_poses, trajectory_t& out)
+// Interpolate raw poses spaced by raw_pose_step at interval specified by
+// trajectory_step. Both steps are in ms.
+bool PayloadController::interpolateTrajectory(const std::vector<PlatformPose>& raw_poses, 
+    trajectory_t& out, float raw_pose_step, float trajectory_step)
 {
     // Require at least two poses to interpolate between
     if (raw_poses.size() < 2)
@@ -364,7 +457,7 @@ bool PayloadController::interpolateTrajectory(const std::vector<PlatformPose>& r
         return false;
     }
 
-    const int n_steps = TRAJECTORY_FILE_STEP / TRAJECTORY_STRUCT_STEP;
+    const int n_steps = raw_pose_step / trajectory_step;
 
     // Interpolate between each consecutive pair of raw poses
     for (size_t i = 0; i < raw_poses.size() - 1; i++)
@@ -381,13 +474,13 @@ bool PayloadController::interpolateTrajectory(const std::vector<PlatformPose>& r
             Eigen::Quaternionf orientation = raw_poses[i].orientation.slerp(t, raw_poses[i + 1].orientation);
 
             out.poses.push_back({pos, orientation});
-            out.times.push_back((float)(i * TRAJECTORY_FILE_STEP + j * TRAJECTORY_STRUCT_STEP));
+            out.times.push_back((float)(i * raw_pose_step + j * trajectory_step));
         }
     }
 
     // Append the final raw pose to close the trajectory
     out.poses.push_back(raw_poses.back());
-    out.times.push_back((float)((raw_poses.size() - 1) * TRAJECTORY_FILE_STEP));
+    out.times.push_back((float)((raw_poses.size() - 1) * raw_pose_step));
 
     return true;
 }
@@ -428,7 +521,7 @@ bool PayloadController::buildTrajectory()
     }
 
     // Interpolate between raw poses at TRAJECTORY_STRUCT_STEP intervals
-    if (interpolateTrajectory(raw_poses, temp) == false)
+    if (interpolateTrajectory(raw_poses, temp, TRAJECTORY_FILE_STEP, TRAJECTORY_STRUCT_STEP) == false)
     {
         error.msg = "Could not interpolate trajectory.";
         return false;

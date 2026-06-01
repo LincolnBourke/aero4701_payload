@@ -1,4 +1,4 @@
-#include "servo_controller.hpp"
+#include "servoController.hpp"
 #include <iostream>
 
 int main()

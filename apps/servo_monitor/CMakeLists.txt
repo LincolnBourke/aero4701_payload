@@ -1,6 +1,6 @@
 add_executable(servo_monitor
     src/main.cpp
-    src/servo_monitor.cpp
+    src/servoMonitor.cpp
 )
 
 target_include_directories(servo_monitor PRIVATE
