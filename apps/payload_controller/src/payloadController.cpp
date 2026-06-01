@@ -9,6 +9,10 @@
 #define TRAJECTORY_STRUCT_STEP 250 // ms, time between successive poses in the trajectory struct
 #define TRAJECTORY_FILE_PATH "data/trajectory_simple.csv"
 
+#define CALIBRATION_END_POINT_STEP 5000 // ms
+#define CALIBRATION_STRUCT_STEP 20 // ms
+#define CALIBRATION_START_Z 15 // mm
+#define CALIBRATION_END_Z 0 // mm
 
 PayloadController::PayloadController()
     : lcm(), lcm_handler(), error(), platform(), trajectory_step(0), experiment_start_time()
@@ -105,7 +109,44 @@ state_t PayloadController::handleReadTrajectoryState()
 }
 
 state_t PayloadController::handleCalibrateServosState()
-{
+{   
+    // Max and min z values scanned during calibration
+    const float max_z = 12.5; // mm
+    const float min_z = 0.0; // mm
+
+    // Generate the start and end positions for the servo calibration
+    PlatformPose start_pose = PlatformPose{Vector3f::Zero(), Quaternionf::Identity()};
+    PlatformPose end_pose = PlatformPose{Vector3f::Zero(), Quaternionf::Identity()}; 
+    start_pose.position(2) = max_z;
+    end_pose.position(2) = min_z;
+    std::vector<PlatformPose> end_points = {start_pose, end_pose};
+
+    // Generate trajectory between positions
+    trajectory_t calibration_trajectory;
+    bool success = interpolateTrajectory(end_points, calibration_trajectory, CALIBRATION_END_POINT_STEP, CALIBRATION_STRUCT_STEP);
+    if (success == false)
+    {
+        error.msg = "Could not generate calibration trajectory.";
+        std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+        return ERROR;
+    }
+
+    // Lower platform along trajectory until limit switches activate 
+    for (size_t i = 0; i < calibration_trajectory.times.size(); i++)
+    {   
+        // Check if the limit switches have activated
+        // TODO
+
+        // Move platform along trajectory
+        if (platform.moveTo(calibration_trajectory.poses[i]) == false)
+        {
+            error.msg = "Could not move platform to starting pose during servo calibration.";
+            std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+            return ERROR;
+        }
+    }
+    
+    // Set calibration offset for the Stewart platform
     // TODO
 
     // Automatically transition to camera calibration when the servos are calibrated
@@ -405,7 +446,10 @@ bool PayloadController::writeAnglesToFile(std::string file_path)
 
 // --- Trajectory building -----------------------------------------------------
 
-bool PayloadController::interpolateTrajectory(const std::vector<PlatformPose>& raw_poses, trajectory_t& out)
+// Interpolate raw poses spaced by raw_pose_step at interval specified by
+// trajectory_step. Both steps are in ms.
+bool PayloadController::interpolateTrajectory(const std::vector<PlatformPose>& raw_poses, 
+    trajectory_t& out, float raw_pose_step, float trajectory_step)
 {
     // Require at least two poses to interpolate between
     if (raw_poses.size() < 2)
@@ -413,7 +457,7 @@ bool PayloadController::interpolateTrajectory(const std::vector<PlatformPose>& r
         return false;
     }
 
-    const int n_steps = TRAJECTORY_FILE_STEP / TRAJECTORY_STRUCT_STEP;
+    const int n_steps = raw_pose_step / trajectory_step;
 
     // Interpolate between each consecutive pair of raw poses
     for (size_t i = 0; i < raw_poses.size() - 1; i++)
@@ -430,13 +474,13 @@ bool PayloadController::interpolateTrajectory(const std::vector<PlatformPose>& r
             Eigen::Quaternionf orientation = raw_poses[i].orientation.slerp(t, raw_poses[i + 1].orientation);
 
             out.poses.push_back({pos, orientation});
-            out.times.push_back((float)(i * TRAJECTORY_FILE_STEP + j * TRAJECTORY_STRUCT_STEP));
+            out.times.push_back((float)(i * raw_pose_step + j * trajectory_step));
         }
     }
 
     // Append the final raw pose to close the trajectory
     out.poses.push_back(raw_poses.back());
-    out.times.push_back((float)((raw_poses.size() - 1) * TRAJECTORY_FILE_STEP));
+    out.times.push_back((float)((raw_poses.size() - 1) * raw_pose_step));
 
     return true;
 }
@@ -477,7 +521,7 @@ bool PayloadController::buildTrajectory()
     }
 
     // Interpolate between raw poses at TRAJECTORY_STRUCT_STEP intervals
-    if (interpolateTrajectory(raw_poses, temp) == false)
+    if (interpolateTrajectory(raw_poses, temp, TRAJECTORY_FILE_STEP, TRAJECTORY_STRUCT_STEP) == false)
     {
         error.msg = "Could not interpolate trajectory.";
         return false;
