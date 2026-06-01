@@ -32,13 +32,21 @@ struct save_complete_t
 }
 
 struct servo_targets_t
-{
+{g++ main.cpp -o lcm_subscriber -llcm -I.
     float angles[6];
 }
 
 struct true_servo_angles_t
 {
     float angles[6];
+}
+
+struct switch_state_t
+{
+    int64_t timestamp;
+    int8_t switch1; 
+    int8_t switch2; 
+    int8_t switch3; 
 }
 
 struct servo_angs
