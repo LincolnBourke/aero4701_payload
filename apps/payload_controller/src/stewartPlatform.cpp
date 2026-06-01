@@ -13,7 +13,7 @@
 // ***** Stewart Platform Geometry *****
 
 // Distance between platform origin and the bottom of the platform 
-#define PLATFORM_Z_OFFSET 3.60 // mm
+#define PLATFORM_Z_OFFSET 10.0 // 3.60 // mm
 
 // Distance between the base origin and the top of the servo brace 
 #define BASE_Z_OFFSET 9.4248 // mm
