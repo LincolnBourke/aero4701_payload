@@ -14,6 +14,7 @@
 #include <string>
 #include <vector>
 #include <chrono>
+#include <thread>
 
 // Define a trajectory
 typedef struct {
@@ -95,9 +96,13 @@ class PayloadController
         // Return value indicates if the platform could be retracted successfully.
         bool retractPlatform();
 
-        // Block until a save_complete message is received from the camera node.
-        // Return value indicates if the save was successful.
-        bool waitForSaveComplete();
+        // // Block until a save_complete message is received from the camera node.
+        // // Return value indicates if the save was successful.
+        // Replaced with waitForCamStatus, but leaving in case needs to be brough back
+        // bool waitForSaveComplete();
+
+        // Block until status message from camera 
+        bool waitForCamStatus(int timeout_ms);
 
         // --- State methods ---------------------------------------------------
         state_t handleIdleState();
@@ -111,7 +116,7 @@ class PayloadController
         state_t handleErrorState();
 
         // --- LCM publisher methods -------------------------------------------
-        void publishCameraCommand(int8_t command_id);
+        void publishCameraCommand(state_t state, bool debug_mode);
         void publishRunResult(int8_t return_id);
 
     public:

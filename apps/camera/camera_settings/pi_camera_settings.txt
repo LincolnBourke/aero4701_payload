@@ -1,0 +1,12 @@
+# Pi Camera 3 settings
+
+width       = 640
+height      = 480
+fps         = 5.0
+threshold   = 30.0
+warmup      = 1.0
+grayscale   = false
+
+# Optional manual overrides — comment out to use auto
+# exposure_us = 5000
+# gain        = 2.0
