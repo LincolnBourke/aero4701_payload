@@ -134,10 +134,10 @@ state_t PayloadController::handleCalibrateServosState()
     }
 
     // Lower platform along trajectory until limit switches activate 
+    int switch_states[3]; 
     for (size_t i = 0; i < calibration_trajectory.times.size(); i++)
     {   
         // Check if the limit switches have activated
-        int switch_states[3]; 
         lcm.handleTimeout(0);
         if ( lcm_handler.checkSwitchState(switch_states) )
         {

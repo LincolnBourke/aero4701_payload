@@ -65,9 +65,9 @@ void LcmHandler::handleSwitchStateMsg(const lcm::ReceiveBuffer* rbuf,
 {
     printf("[INFO] Received message on channel %s with states [%d, %d, %d]\n", 
             channel.c_str(), 
-            static_cast<int>(last_switch_state_msg.switch1),
-            static_cast<int>(last_switch_state_msg.switch2),
-            static_cast<int>(last_switch_state_msg.switch3) );
+            static_cast<int>(msg->switch1),
+            static_cast<int>(msg->switch2),
+            static_cast<int>(msg->switch3) );
 
     switch_state_received = true;
     last_switch_state_msg = *msg;
