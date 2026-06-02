@@ -5,8 +5,8 @@
 #include <fstream>
 #include <sstream>
 
-#define TRAJECTORY_FILE_STEP 1000 // ms, time between successive poses in the trajectory file
-#define TRAJECTORY_STRUCT_STEP 20 // ms, time between successive poses in the trajectory struct
+#define TRAJECTORY_FILE_STEP 500 // ms, time between successive poses in the trajectory file
+#define TRAJECTORY_STRUCT_STEP 250 // ms, time between successive poses in the trajectory struct
 #define TRAJECTORY_FILE_PATH "data/trajectory_simple.csv"
 
 #define CALIBRATION_END_POINT_STEP 5000 // ms
@@ -104,6 +104,7 @@ state_t PayloadController::handleReadTrajectoryState()
         std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
         return ERROR;
     }
+    std::cout << "[INFO] Trajectory file parsed." << std::endl;
 
     // Automatically transition to servo calibration when the trajectory can be read
     std::cout << "[INFO] Payload controller state set to CALIBRATE_SERVOS." << std::endl;
@@ -113,8 +114,8 @@ state_t PayloadController::handleReadTrajectoryState()
 state_t PayloadController::handleCalibrateServosState()
 {   
     // Max and min z values scanned during calibration
-    const float max_z = 12.5; // mm
-    const float min_z = 0.0; // mm
+    const float max_z = CALIBRATION_START_Z; // mm
+    const float min_z = CALIBRATION_END_Z; // mm
 
     // Generate the start and end positions for the servo calibration
     PlatformPose start_pose = PlatformPose{Vector3f::Zero(), Quaternionf::Identity()};
@@ -134,7 +135,8 @@ state_t PayloadController::handleCalibrateServosState()
     }
 
     // Lower platform along trajectory until limit switches activate 
-    int switch_states[3]; 
+    int switch_states[3] = {0}; 
+    bool switches_activated = false; 
     for (size_t i = 0; i < calibration_trajectory.times.size(); i++)
     {   
         // Check if the limit switches have activated
@@ -150,6 +152,7 @@ state_t PayloadController::handleCalibrateServosState()
             // If all activated, stop 
             if (switch_states[0] && switch_states[1] && switch_states[2])
             {
+                switches_activated = true; 
                 break; 
             }
         }
@@ -164,7 +167,16 @@ state_t PayloadController::handleCalibrateServosState()
     }
     
     // Set calibration offset for the Stewart platform
-    // TODO
+    if (switches_activated)
+    {
+        // TODO
+    }
+    else 
+    {
+        std::cout << "[ERROR] Servo calibration procedure did not find state with all switches activated." << std::endl;
+        // std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+        // return ERROR;
+    }
 
     // Automatically transition to camera calibration when the servos are calibrated
     std::cout << "[INFO] Payload controller state set to CALIBRATE_CAMERA." << std::endl;
@@ -330,8 +342,14 @@ bool PayloadController::trackTrajectoryStep(bool &trajectory_complete)
     double experiment_time = std::chrono::duration<double, std::milli>(time_temp).count();
 
     // Move the platform to the next pose until we catch up to the current time
-    while (experiment_time >= trajectory.times[trajectory_step])
+    while (experiment_time >= trajectory.times[trajectory_step] && trajectory_step < trajectory.times.size())
     {
+        // Display the target pose for debugging
+        std::cout << "[INFO] Moving to target pose:" 
+            << " position: " << trajectory.poses[trajectory_step].position.transpose() << ","
+            << " orientation: "<< trajectory.poses[trajectory_step].orientation << std::endl;
+        
+        
         if (platform.moveTo(trajectory.poses[trajectory_step]) == false)
         {
             // error.msg = "Could not move platform to target pose.";

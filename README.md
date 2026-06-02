@@ -10,11 +10,12 @@ This includes:
 - C++17 compatible compiler
 - Eigen3 (>= 3.3)
 - Lightweight communications and marshalling
+- Libgpiod
 
 Required packages can be installed with:
     
 ```sh
-sudo apt-get install libeigen3-dev liblcm-dev
+sudo apt-get install libeigen3-dev liblcm-dev libgpiod-dev
 ```
 
 ## Build Instructions

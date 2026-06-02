@@ -14,7 +14,6 @@ target_include_directories(limit_switch_reader PRIVATE
 )
 
 target_link_libraries(limit_switch_reader PRIVATE
-    Eigen3::Eigen
     PkgConfig::lcm
     PkgConfig::gpiod 
 )

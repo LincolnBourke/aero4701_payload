@@ -32,7 +32,7 @@ struct save_complete_t
 }
 
 struct servo_targets_t
-{g++ main.cpp -o lcm_subscriber -llcm -I.
+{
     float angles[6];
 }
 
