@@ -120,9 +120,8 @@ class Camera:
         self.output_dir, self.calib_folder, self.baseline_folder, self.baseline_pose_folder = h.setup_directories()
 
         # Calibration parameters
-        # TODO Delete MAX_BOARDS
         # TODO fix settings
-        CHESSBOARD, MAX_BOARDS, SQUARE_SIZE, L, MAX_CALIB_ATTEMPTS = h.setup_calib_parameters()
+        CHESSBOARD, SQUARE_SIZE, L, MAX_CALIB_ATTEMPTS = h.setup_calib_parameters()
 
         # Ground truth chessboard corner coordinates
         self.objpoints_3boards = h.get_cboard_gt(L, CHESSBOARD, SQUARE_SIZE)
