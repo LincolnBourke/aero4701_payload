@@ -334,7 +334,7 @@ class DigitalTwin:
             0.5, 0.975, "STEWART PLATFORM  ·  DIGITAL TWIN",
             ha='center', va='top',
             fontsize=13, fontfamily='monospace',
-            color=C_ACCENT, fontweight='bold', letterspacing=3,
+            color=C_ACCENT, fontweight='bold'#, letterspacing=3,
         )
 
         # Status dot

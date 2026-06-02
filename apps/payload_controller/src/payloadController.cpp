@@ -5,8 +5,8 @@
 #include <fstream>
 #include <sstream>
 
-#define TRAJECTORY_FILE_STEP 500 // ms, time between successive poses in the trajectory file
-#define TRAJECTORY_STRUCT_STEP 250 // ms, time between successive poses in the trajectory struct
+#define TRAJECTORY_FILE_STEP 1000 // ms, time between successive poses in the trajectory file
+#define TRAJECTORY_STRUCT_STEP 20 // ms, time between successive poses in the trajectory struct
 #define TRAJECTORY_FILE_PATH "data/trajectory_simple.csv"
 
 #define CALIBRATION_END_POINT_STEP 5000 // ms
