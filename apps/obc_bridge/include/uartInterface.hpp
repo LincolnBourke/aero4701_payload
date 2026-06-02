@@ -6,6 +6,7 @@ Handles UART hardware interface.
 #define UART_INTERFACE_H
 
 #include <string>
+#include <cstdint>
 
 // For UART
 #include <fcntl.h>

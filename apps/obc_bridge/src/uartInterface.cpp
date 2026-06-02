@@ -14,11 +14,14 @@ UartInterface::UartInterface() {};
 // Automatically clean up 
 UartInterface::~UartInterface()
 {
-    // Re-apply initial config 
-    tcflush(uart_filestream, TCIFLUSH);
-	tcsetattr(uart_filestream, TCSANOW, &initial_config);
+    if (uart_filestream != -1)
+    {
+        // Re-apply initial config 
+        tcflush(uart_filestream, TCIFLUSH);
+        tcsetattr(uart_filestream, TCSANOW, &initial_config);
 
-    close(uart_filestream);
+        close(uart_filestream);
+    }
 }
 
 bool UartInterface::setupUart()
