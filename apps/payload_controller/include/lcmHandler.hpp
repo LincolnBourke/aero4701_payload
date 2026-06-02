@@ -7,10 +7,10 @@ Handles LCM messaging for the payload controller node.
 
 #include "run_command_t.hpp"
 #include "save_complete_t.hpp"
+#include "switch_state_t.hpp"
 
 #include <lcm/lcm-cpp.hpp>
 #include <string.h>
-
 
 class LcmHandler 
 {
@@ -21,6 +21,9 @@ class LcmHandler
 
         payload_messages::save_complete_t last_save_complete_msg;
         bool save_complete_received;
+
+        payload_messages::switch_state_t last_switch_state_msg;
+        bool switch_state_received;
 
     public:
         LcmHandler();
@@ -35,9 +38,14 @@ class LcmHandler
             const std::string& channel,
             const payload_messages::save_complete_t* msg);
 
+        void handleSwitchStateMsg(const lcm::ReceiveBuffer* rbuf,
+            const std::string& channel,
+            const payload_messages::switch_state_t* msg);
+
         // Returns true if a message was received and stores the id
         bool checkRunCommand(int& command_id);
         bool checkSaveComplete(int& return_id);
+        bool checkSwitchState( int (&switch_states)[3] ); 
 };
 
 #endif

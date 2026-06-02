@@ -15,7 +15,8 @@
 #define CALIBRATION_END_Z 0 // mm
 
 PayloadController::PayloadController()
-    : lcm(), lcm_handler(), error(), platform(), trajectory_step(0), experiment_start_time()
+    : lcm(), lcm_handler(), error(), platform(), 
+      trajectory_step(0), experiment_start_time()
 {
     trajectory_path = TRAJECTORY_FILE_PATH;
 
@@ -27,6 +28,7 @@ PayloadController::PayloadController()
     // Subscribe lcm handler to messages
     lcm.subscribe("RUN_COMMAND", &LcmHandler::handleRunCommand, &lcm_handler);
     lcm.subscribe("SAVE_COMPLETE", &LcmHandler::handleSaveComplete, &lcm_handler);
+    lcm.subscribe("LIMIT_SWITCH_STATES", &LcmHandler::handleSwitchStateMsg, &lcm_handler);
 };
 
 PayloadController::~PayloadController(){};
@@ -135,7 +137,22 @@ state_t PayloadController::handleCalibrateServosState()
     for (size_t i = 0; i < calibration_trajectory.times.size(); i++)
     {   
         // Check if the limit switches have activated
-        // TODO
+        int switch_states[3]; 
+        lcm.handleTimeout(0);
+        if ( lcm_handler.checkSwitchState(switch_states) )
+        {
+            // New message 
+            std::cout << "[INFO] New switch state: [ " << switch_states[0]; 
+            std::cout << ", " << switch_states[1]; 
+            std::cout << ", " << switch_states[2]; 
+            std::cout << "]\n"; 
+
+            // If all activated, stop 
+            if (switch_states[0] && switch_states[1] && switch_states[2])
+            {
+                break; 
+            }
+        }
 
         // Move platform along trajectory
         if (platform.moveTo(calibration_trajectory.poses[i]) == false)
@@ -212,7 +229,7 @@ state_t PayloadController::handleRunningState()
     // Make an incremental step to move the platform along the trajectory
     if (trackTrajectoryStep(trajectory_complete) == false)
     {
-        error.msg = "Failure while tracking trajectory.";
+        // error.msg = "Failure while tracking trajectory.";
         std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
         return ERROR;
     }
@@ -317,7 +334,7 @@ bool PayloadController::trackTrajectoryStep(bool &trajectory_complete)
     {
         if (platform.moveTo(trajectory.poses[trajectory_step]) == false)
         {
-            error.msg = "Could not move platform to target pose.";
+            // error.msg = "Could not move platform to target pose.";
             return false;
         }
         trajectory_step++;

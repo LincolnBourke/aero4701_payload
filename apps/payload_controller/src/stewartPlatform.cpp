@@ -88,7 +88,7 @@ bool StewartPlatform::moveTo(const PlatformPose &target_pose)
     platform_pose_target.position[2] += (BASE_Z_OFFSET + PLATFORM_Z_OFFSET);
 
     // Attempt to calculate the servo targets for the pose target
-    if (computeServoTargets(false) == false)
+    if (computeServoTargets(true) == false)
         return false;
 
     // Publish targets for servo controller to use
@@ -222,8 +222,8 @@ bool StewartPlatform::computeServoTargets(bool print_errors)
             if (print_errors)
                 std::cout << "Error: Angular skew exceeded." << std::endl;
             
-            successful_calculation = false; 
-            break;
+            // successful_calculation = false; 
+            // break;
         }
 
         servo_targets[i] = servo_target;
