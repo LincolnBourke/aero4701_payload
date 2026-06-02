@@ -151,7 +151,7 @@ class Camera:
                 continue
 
             # Take short video and save to calibration folder
-            h.save_calib_video_picam(picam2_, SHOW_CAMERA_FEED, calib_time=20.0)
+            h.save_calib_video_picam(picam2_, SHOW_CAMERA_FEED, calib_time=5.0)
 
             # Load images
             images = glob.glob("outputs/calibration/*.jpeg")
@@ -232,8 +232,6 @@ class Camera:
             lcm_h.publish_cam_msg(cam_status=False)
             return
 
-        # Publish ok to controller
-        lcm_h.publish_cam_msg(cam_status=True)
 
     def handle_save_results(self):
         """

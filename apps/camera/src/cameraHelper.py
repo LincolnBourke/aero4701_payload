@@ -623,6 +623,7 @@ def process_baseline_data(objpoints_3boards, mtx, dist, ROIS, CHESSBOARD=(5, 3),
     os.makedirs(pose_folder, exist_ok=True)
 
     results_dir = "outputs/experiment_results"
+    os.makedirs(results_dir, exist_ok=True) # backup
     results_file = open(os.path.join(results_dir, "experiment_results.bin"), "ab")
 
     for fname in images:
@@ -685,8 +686,7 @@ def process_baseline_data(objpoints_3boards, mtx, dist, ROIS, CHESSBOARD=(5, 3),
 def save_exp_results(hist_records):
     # Setup output folders
     results_dir = "outputs/experiment_results"
-    shutil.rmtree(results_dir, ignore_errors=True)
-    os.makedirs(results_dir, exist_ok=True)
+    os.makedirs(results_dir, exist_ok=True) # backup
     
     # Write histogram records to binary file
     results_file = open(os.path.join(results_dir, "experiment_results.bin"), "ab")
