@@ -3,6 +3,7 @@ add_executable(obc_bridge
     src/obcBridge.cpp
     src/lcmHandler.cpp
     src/uartInterface.cpp
+    src/obcMessageHandler.cpp
 )
 
 target_include_directories(obc_bridge PRIVATE

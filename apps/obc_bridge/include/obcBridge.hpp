@@ -7,8 +7,6 @@ to send data back over UART.
 #ifndef OBC_BRIDGE_H
 #define OBC_BRDIGE_H
 
-#include "uartInterface.hpp"
-
 // States for the top level OBC-payload comms state machine
 enum class ObcBridgeState 
 {
@@ -39,9 +37,6 @@ enum class TransmitErrorState
 class ObcBridge
 {
     private: 
-        // For reading and writing messages to the UART port
-        UartInterface uart_interface;
-
         // State handlers for the main OBC-payload comms state machine
         ObcBridgeState handleIdleState();
         ObcBridgeState handleDoExperimentState();

@@ -1,5 +1,6 @@
 /*
-Handles UART hardware interface. 
+Handles UART hardware interface. Transmits and receives messages of the type
+UART_msg_t. 
 */
 
 #ifndef UART_INTERFACE_H
@@ -16,7 +17,7 @@ Handles UART hardware interface.
 //--------------Defines----------------
 #define RX_CRC_BYTES      2
 #define RX_HEADER_BYTES   3
-#define RX_BUFFER_BYTES 256
+#define RX_BUFFER_BYTES 254 // Had to decrease max length from 256 to 254 to make compatible with UART_msg_t maximum length comparisons in .cpp file
 #define UART_SOF       0x64
 #define DEFAULT_UART_TIMEOUT_US 100
 
@@ -34,7 +35,7 @@ typedef enum{
 typedef struct{
     uint8_t id;
     uint8_t sof;
-    uint16_t length; //  TODO had to change 8 -> 16 bytes to satisfy max buffer size 
+    uint8_t length; 
     uint8_t payload[RX_BUFFER_BYTES];
     uint16_t crc;
 }UART_msg_t;
