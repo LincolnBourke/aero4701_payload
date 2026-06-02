@@ -7,6 +7,10 @@ to send data back over UART.
 #ifndef OBC_BRIDGE_H
 #define OBC_BRDIGE_H
 
+#include "obcBridgeLcmHandler.hpp"
+
+#include <lcm/lcm-cpp.hpp>
+
 // States for the top level OBC-payload comms state machine
 enum class ObcBridgeState 
 {
@@ -37,6 +41,9 @@ enum class TransmitErrorState
 class ObcBridge
 {
     private: 
+        lcm::LCM lcm;
+        ObcBridgeLcmHandler lcm_handler;
+
         // State handlers for the main OBC-payload comms state machine
         ObcBridgeState handleIdleState();
         ObcBridgeState handleDoExperimentState();

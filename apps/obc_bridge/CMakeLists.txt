@@ -1,7 +1,7 @@
 add_executable(obc_bridge
     src/main.cpp
     src/obcBridge.cpp
-    src/lcmHandler.cpp
+    src/obcBridgeLcmHandler.cpp
     src/uartInterface.cpp
     src/obcMessageHandler.cpp
 )

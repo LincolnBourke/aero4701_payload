@@ -63,8 +63,8 @@ class UartInterface
         // Setup UART filestream for read/write. Return false on failure. 
         bool setupUart();  
 
-        // Look for a mesage to receive and read it. Return value indicates if a
-        // message was read successfully. 
+        // Look for a message to receive and read it. Return value indicates if a
+        // message was read successfully. Timeout in microseconds.
         bool receive(UART_msg_t* msg, uint32_t timeout_us);
 
         // Transmit a message. Return value indicates if the message could be sent.

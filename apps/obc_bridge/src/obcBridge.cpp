@@ -2,7 +2,17 @@
 
 #include <iostream>
 
-ObcBridge::ObcBridge() {};
+ObcBridge::ObcBridge()
+    : lcm(), lcm_handler()
+{
+    if (!lcm.good())
+    {
+        std::cout << "[ERROR] LCM not good." << std::endl;
+    }
+
+    // Subscribe lcm handler to messages
+    lcm.subscribe("RUN_RESULT", &ObcBridgeLcmHandler::handleRunResult, &lcm_handler);
+};
 
 ObcBridge::~ObcBridge() {};
 
@@ -34,6 +44,8 @@ void ObcBridge::run()
 // --- Main state machine logic ------------------------------------------------
 ObcBridgeState ObcBridge::handleIdleState()
 {
+    // 
+
     return ObcBridgeState::DO_EXPERIMENT;
 }
 

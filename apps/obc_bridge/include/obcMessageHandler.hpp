@@ -34,9 +34,21 @@ class ObcMessageHandler
         // For reading and writing messages to the UART port
         UartInterface uart_interface;
 
+        UART_msg_t last_message_read;
+        bool message_is_stored; 
+
         // Formats and transmits UART messages with a single payload byte equal
         // to the message ID. 
-        bool transmitIdOnlyMessage(uint8_t id); 
+        bool transmitIdOnlyMessage(uint8_t id);
+        
+        // Check for a message sent over UART and store in last_message_read.
+        // Flag when a message has been received in last_message_received.
+        // Overwrites any message already stored in last_message_read. 
+        bool getMessage();
+
+        // Checks if a message with the given id is stored in last_message_read 
+        // or if it can be read from the UART terminal 
+        bool checkForMessage(uint8_t id);
 
     public: 
         ObcMessageHandler();
@@ -45,12 +57,17 @@ class ObcMessageHandler
         // Experiment start / stop messages
         bool transmitStartAck();
         bool transmitStopAck();
+        bool checkStartMsg();
+        bool checkStopMsg();
 
         // Result transfer messages
         bool transmitTransferRequest();
         bool transmitHeader();
         bool transmitResultsPacket();
         bool transmitTransferComplete();
+        bool checkTransferAck();
+        bool checkHeaderAck();
+        bool checkPacketAck();
 };
 
 #endif 
