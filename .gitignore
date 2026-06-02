@@ -3,3 +3,5 @@ data/*
 lcm_messages/payload_messages/*
 .vscode/settings.json
 outputs/
+__pycache__/
+*.py[cod]

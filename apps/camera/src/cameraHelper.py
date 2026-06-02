@@ -254,12 +254,25 @@ def get_valid_frame(camera):
         return None
 
     if frame.shape[2] == 4:
-        frame = cv.cvtColor(frame, cv.COLOR_BGRA2BGR)
-    elif frame.shape[2] != 3:
+        frame = cv.cvtColor(frame, cv.COLOR_RGBA2BGR)  
+    elif frame.shape[2] == 3:
+        frame = cv.cvtColor(frame, cv.COLOR_RGB2BGR)  
+    else:
         return None
 
     return frame
 
+
+def capture_frame(picam2_):
+    frame = picam2_.capture_array("main")
+    if frame is None or frame.size == 0:
+        return None
+    if frame.shape[2] == 4:
+        return cv.cvtColor(frame, cv.COLOR_RGBA2BGR)
+    elif frame.shape[2] == 3:
+        return cv.cvtColor(frame, cv.COLOR_RGB2BGR)
+    return None
+    
 
 # Open pi camera 3 and set focus. Save debug image if enabled.
 def open_picam(params, picam2_, debug_mode=False):
@@ -364,7 +377,8 @@ def save_calib_video_picam(picam2_, display_widget = False, calib_time=1.0, cali
         try:
             while time.time() - start_time < calib_time:
 
-                frame = picam2_.capture_array("main")
+                # frame = picam2_.capture_array("main")
+                frame = capture_frame(picam2_)
                 if frame is None:
                     continue
 
@@ -388,7 +402,7 @@ def save_calib_video_picam(picam2_, display_widget = False, calib_time=1.0, cali
             cv.destroyAllWindows()
     else: 
         while time.time() - start_time < calib_time:
-            frame = picam2_.capture_array("main")
+            frame = capture_frame(picam2_) # picam2_.capture_array("main")
             if frame is None:
                 continue
             frames.append(frame.copy())
@@ -521,7 +535,8 @@ def save_exp_video(picam2_, display_widget=False, save_debug_images=False, exp_t
     frame = None
     while frame is None and (time.time() - start_time) < timeout:
         try:
-            frame = picam2_.capture_array("main")
+            # frame = picam2_.capture_array("main")
+            frame = capture_frame(picam2_)
         except Exception:
             frame = None
     if frame is None:
@@ -577,7 +592,8 @@ def save_exp_video(picam2_, display_widget=False, save_debug_images=False, exp_t
     if display_widget:
         try:
             while time.time() - start_time < exp_time:
-                frame = picam2_.capture_array("main")
+                # frame = picam2_.capture_array("main")
+                frame = capture_frame(picam2_)
                 if frame is None:
                     continue
                 cv.imshow("Experiment Camera", frame)
@@ -593,7 +609,7 @@ def save_exp_video(picam2_, display_widget=False, save_debug_images=False, exp_t
             cv.destroyAllWindows()
     else:
         while time.time() - start_time < exp_time:
-            frame = picam2_.capture_array("main")
+            frame = capture_frame(picam2_) # picam2_.capture_array("main")
             if frame is None:
                 continue
             process_frame(frame)
