@@ -111,42 +111,31 @@ void ServoController::handleServoAngMsg(const lcm::ReceiveBuffer* rbuf,
     std::cout << std::endl;
 }
 
-// void ServoController::handleServoAngMsg(const lcm::ReceiveBuffer* rbuf,
-//                     const std::string& chan,
-//                     const payload_messages::servo_angs* msg) {
-//     (void)rbuf; // Cast to void to avoid unused parameter compiler warnings 
-//     (void)chan;
-    
-//     int count = std::min((int)msg->position.size(), _num_motors);
+// void ServoController::neutraliseServos()
+// {
+//     std::cout << "[INFO] Neutralising all servos." << std::endl;
 
-//     // Sine Wave Parameters
-//     double frequency = 0.5;  // 0.5 Hz (one full swing every 2 seconds)
-//     double amplitude = 45.0; // Swings +/- 45 degrees
-//     double offset = 90.0;    // Centered at 90 degrees
+//     const int EVEN_MIN = 816,  EVEN_MAX = 3008;
+//     const int ODD_MIN  = 384,  ODD_MAX  = 2112;
+//     int even_centre = (EVEN_MAX + EVEN_MIN) / 2;
+//     int odd_centre  = (ODD_MAX  + ODD_MIN)  / 2;
 
-//     // FIX: Convert microseconds to SECONDS (1 second = 1,000,000 microseconds)
-//     double t = static_cast<double>(msg->timestamp) / 1000.0;
-
-//     // std::cout << "\n[Sine-Wave Mode] Time: " << std::fixed << std::setprecision(2) << t << "s" << std::endl;
-
-//     // Calculate the target angle once outside the loop since it only depends on time 't'
-//     // Equation: Angle = Offset + A * sin(2 * PI * f * t)
-//     double sine_angle = offset + amplitude * std::sin(2.0 * M_PI * frequency * t);
-
-//     // Convert the single calculated sine angle to Maestro units
-//     unsigned short target = 4000 + (sine_angle * (4000.0 / 180.0));
-
-//     for (int i = 0; i < count; i++) {
-//         // 1. CONTROL: Write to hardware
-//         _maestroSetTarget(i, target);
-
-//         // // 2. SHOW: Contrast the sensor reading with the generated sine command
-//         // std::cout << "  Motor " << i
-//         //         << " | Actual (Sensor): " << std::setw(6) << msg->position[i] << " deg"
-//         //         << " | Target (Sine): " << std::setw(6) << sine_angle << " deg"
-//         //         << std::endl << std::flush;
+//     for (int i = 0; i < _num_motors; i++)
+//     {
+//         unsigned short centre = (i % 2 == 1) ? odd_centre : even_centre;
+//         _maestroSetTarget(i, centre);
 //     }
 // }
+
+void ServoController::neutraliseServos()
+{
+    std::cout << "[INFO] Disabling all servos." << std::endl;
+
+    for (int i = 0; i < _num_motors; i++)
+    {
+        _maestroSetTarget(i, 0);
+    }
+}
 
 void ServoController::_maestroSetTarget(unsigned char channel, unsigned short target) {
     if (_fd == -1) return;

@@ -23,6 +23,9 @@ class ServoController
                                const std::string& chan,
                                const payload_messages::servo_targets_t* msg);
 
+        // Sends all servos to their neutral (zero-angle) position.
+        void neutraliseServos();
+
         // Public LCM instance used by main to pump the message loop.
         lcm::LCM lcm;
 
