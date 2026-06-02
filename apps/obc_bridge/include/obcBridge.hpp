@@ -8,19 +8,32 @@ to send data back over UART.
 #define OBC_BRDIGE_H
 
 #include "obcBridgeLcmHandler.hpp"
+#include "obcMessageHandler.hpp"
 
 #include <lcm/lcm-cpp.hpp>
+#include <chrono>
 
 // States for the top level OBC-payload comms state machine
 enum class ObcBridgeState 
 {
     IDLE, 
+    RECEIVE_SETTINGS,
     DO_EXPERIMENT,
-    TRANSMIT_RESULT,
-    TRANSMIT_ERROR
+    TRANSMIT_EXPERIMENT_RESULTS,
+    TRANSMIT_EXPERIMENT_ERROR,
+    DEBUG,
+    TRANSMIT_DEBUG_RESULTS
 };
 
-// States for the TRANSMIT_RESULT state machine 
+// States for the RECEIVE_SETTINGS state machine
+enum class ReceiveSettingsState
+{
+    WAIT_HEADER,
+    WAIT_PACKET,
+    WAIT_TRANSFER_COMPLETE
+};
+
+// States for the TRANSMIT_RESULT state machine
 enum class TransmitResultState
 {
     REQUEST_TRANSFER,
@@ -41,20 +54,37 @@ enum class TransmitErrorState
 class ObcBridge
 {
     private: 
+        // For communication between nodes on the payload computer
         lcm::LCM lcm;
         ObcBridgeLcmHandler lcm_handler;
 
+        // For communication with the OBC
+        ObcMessageHandler obc_messager;
+
+        // For timing acknowledgement wait timeouts 
+        std::chrono::time_point<std::chrono::steady_clock> timer_start;
+
+        // readTime returns the time in ms since the last startTimer() call 
+        void startTimer();
+        float readTime();
+
         // State handlers for the main OBC-payload comms state machine
         ObcBridgeState handleIdleState();
+        ObcBridgeState handleReceiveSettingsState();
         ObcBridgeState handleDoExperimentState();
         ObcBridgeState handleTransmitResultState();
         ObcBridgeState handleTransmitErrorState();
+        ObcBridgeState handleDebugState();
+        ObcBridgeState handleTransmitDebugResultsState();
 
         // State handlers for the transmit results state machine
         // TODO
 
         // State handlers for the transmit error state machine
         // TODO
+
+        // LCM message publishers
+        void publishRunCommand(int8_t command_id);
 
         // File i/o
         // TODO

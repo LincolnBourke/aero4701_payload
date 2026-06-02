@@ -1,9 +1,14 @@
 #include "obcBridge.hpp"
+#include "run_command_t.hpp"
+#include "commands.hpp"
 
 #include <iostream>
 
+// Time to wait for an acknowledgement before repeating a message sent over UART
+#define WAIT_ACK_TIMEOUT 1000 // ms
+
 ObcBridge::ObcBridge()
-    : lcm(), lcm_handler()
+    : lcm(), lcm_handler(), obc_messager()
 {
     if (!lcm.good())
     {
@@ -28,38 +33,251 @@ void ObcBridge::run()
             case ObcBridgeState::IDLE:
                 state = handleIdleState();
                 break;
+            case ObcBridgeState::RECEIVE_SETTINGS:
+                state = handleReceiveSettingsState();
+                break;
             case ObcBridgeState::DO_EXPERIMENT:
                 state = handleDoExperimentState();
-                break; 
-            case ObcBridgeState::TRANSMIT_RESULT:
+                break;
+            case ObcBridgeState::TRANSMIT_EXPERIMENT_RESULTS:
                 state = handleTransmitResultState();
-                break; 
-            case ObcBridgeState::TRANSMIT_ERROR:
+                break;
+            case ObcBridgeState::TRANSMIT_EXPERIMENT_ERROR:
                 state = handleTransmitErrorState();
+                break;
+            case ObcBridgeState::DEBUG:
+                state = handleDebugState();
+                break;
+            case ObcBridgeState::TRANSMIT_DEBUG_RESULTS:
+                state = handleTransmitDebugResultsState();
                 break;
         }
     }
 }
 
-// --- Main state machine logic ------------------------------------------------
+// --- Core ObcBridge state machine logic --------------------------------------
+
 ObcBridgeState ObcBridge::handleIdleState()
 {
-    // 
+    // Transition state depending on OBC message sent over UART
+    if (obc_messager.checkStartMsg())
+    {
+        obc_messager.transmitStartAck();
+        return ObcBridgeState::DO_EXPERIMENT;
+    }
+    else if (obc_messager.checkTransferRequest())
+    {
+        // Assume transfer requests are for the experiment settings file
+        obc_messager.transmitTransferAck();
+        return ObcBridgeState::RECEIVE_SETTINGS;
+    }
+    else if (obc_messager.checkEnterDebugMsg())
+    {
+        obc_messager.transmitDebugAck();
+        return ObcBridgeState::DEBUG;
+    }
 
-    return ObcBridgeState::DO_EXPERIMENT;
+    return ObcBridgeState::IDLE;
+}
+
+ObcBridgeState ObcBridge::handleReceiveSettingsState()
+{
+    ReceiveSettingsState state = ReceiveSettingsState::WAIT_HEADER;
+    float ack_timeout = ACK_TIMEOUT;
+    int packet_idx = 0;
+    int num_packets = 0; // TODO: populated from header
+
+    startTimer();
+
+    while (true)
+    {
+        switch (state)
+        {
+            case ReceiveSettingsState::WAIT_HEADER:
+                if (obc_messager.checkHeader() == true)
+                {
+                    obc_messager.transmitHeaderAck();
+                    startTimer();
+                    state = ReceiveSettingsState::WAIT_PACKET;
+                }
+                else if (readTime() > ack_timeout)
+                    startTimer();
+                break;
+
+            case ReceiveSettingsState::WAIT_PACKET:
+                if (obc_messager.checkPacket() == true)
+                {
+                    obc_messager.transmitPacketAck();
+                    if (packet_idx < num_packets - 1)
+                    {
+                        packet_idx++;
+                        startTimer();
+                        state = ReceiveSettingsState::WAIT_PACKET;
+                    }
+                    else
+                    {
+                        startTimer();
+                        state = ReceiveSettingsState::WAIT_TRANSFER_COMPLETE;
+                    }
+                }
+                else if (readTime() > ack_timeout)
+                {
+                    startTimer();
+                    state = ReceiveSettingsState::WAIT_HEADER;
+                }
+                break;
+
+            case ReceiveSettingsState::WAIT_TRANSFER_COMPLETE:
+                if (obc_messager.checkTransferComplete() == true)
+                    return ObcBridgeState::IDLE;
+                else if (readTime() > ack_timeout)
+                {
+                    startTimer();
+                    state = ReceiveSettingsState::WAIT_HEADER;
+                }
+                break;
+        }
+    }
+
+    return ObcBridgeState::RECEIVE_SETTINGS; // should never reach this line
 }
 
 ObcBridgeState ObcBridge::handleDoExperimentState()
 {
-    return ObcBridgeState::TRANSMIT_RESULT;
+    int run_result_id;
+
+    // Start the payload experiment
+    publishRunCommand(Commands::RunId::RUN_CONTROLLER);
+
+    // Poll for stop run messages from the OBC and run complete messages from 
+    // the payload controller
+    while (true)
+    {
+        if (lcm_handler.checkRunResult(run_result_id) == true)
+        {
+            if (run_result_id == Commands::RunResult::RUN_SUCCESS)
+                return ObcBridgeState::TRANSMIT_EXPERIMENT_RESULTS;
+
+            if (run_result_id == Commands::RunResult::RUN_FAIL)
+                return ObcBridgeState::TRANSMIT_EXPERIMENT_ERROR;
+        }
+
+        if (obc_messager.checkStopMsg())
+        {
+            publishRunCommand(Commands::RunId::STOP_CONTROLLER);
+            return ObcBridgeState::IDLE;
+        }
+    }
+
+    return ObcBridgeState::DO_EXPERIMENT; // should never reach this line
 }
 
 ObcBridgeState ObcBridge::handleTransmitResultState()
 {
-    return ObcBridgeState::IDLE;
+    TransmitResultState state = TransmitResultState::REQUEST_TRANSFER;
+    float ack_timeout = ACK_TIMEOUT;
+    int packet_idx = 0; // index of the current packet to be sent over UART 
+    int num_packets = 0;
+
+    // TODO: read and serialise the results before entering state machine
+
+    while (true)
+    {
+        switch (state)
+        {
+            case TransmitResultState::REQUEST_TRANSFER:
+                obc_messager.transmitTransferRequest();
+                startTimer();
+                state = TransmitResultState::WAIT_TRANSFER_ACK;
+                break;
+            
+            case TransmitResultState::WAIT_TRANSFER_ACK:
+                if (obc_messager.checkTransferAck() == true)
+                    state = TransmitResultState::SEND_HEADER;
+                else if (readTime() > ack_timeout)
+                    state = TransmitResultState::REQUEST_TRANSFER;
+                break;
+            
+            case TransmitResultState::SEND_HEADER:
+                obc_messager.transmitHeader();
+                startTimer();
+                state = TransmitResultState::WAIT_HEADER_ACK;
+                break;
+
+            case TransmitResultState::WAIT_HEADER_ACK:
+                if (obc_messager.checkHeaderAck() == true)
+                    state = TransmitResultState::SEND_PACKET;
+                else if (readTime() > ack_timeout)
+                    state = TransmitResultState::SEND_HEADER;
+                break;
+
+            case TransmitResultState::SEND_PACKET:
+                obc_messager.transmitResultsPacket(packet_idx);
+                startTimer();
+                state = TransmitResultState::WAIT_PACKET_ACK;
+                break;
+
+            case TransmitResultState::WAIT_PACKET_ACK:
+                if (obc_messager.checkPacketAck() == true)
+                {
+                    if (packet_idx < num_packets - 1)
+                    {
+                        packet_idx++;
+                        state = TransmitResultState::SEND_PACKET;
+                    }
+                    else 
+                        state = TransmitResultState::TRANSFER_COMPLETE;
+                }
+                else if (readTime() > ack_timeout)
+                    state = TransmitResultState::SEND_PACKET;
+                break;
+
+            case TransmitResultState::TRANSFER_COMPLETE:
+                obc_messager.transmitTransferComplete();
+                return ObcBridgeState::IDLE;
+        }
+    }
+
+    return ObcBridgeState::TRANSMIT_EXPERIMENT_RESULTS; // should never reach this line
 }
 
 ObcBridgeState ObcBridge::handleTransmitErrorState()
 {
+    // TODO: currently does nothing with errors
     return ObcBridgeState::IDLE;
+}
+
+ObcBridgeState ObcBridge::handleDebugState()
+{
+    // TODO: need to implement debug functionality for the payload controller
+    return ObcBridgeState::DEBUG;
+}
+
+ObcBridgeState ObcBridge::handleTransmitDebugResultsState()
+{
+    // TODO: need to implement debug functionality for payload controller
+    return ObcBridgeState::TRANSMIT_DEBUG_RESULTS;
+}
+
+// --- Timer -------------------------------------------------------------------
+
+void ObcBridge::startTimer()
+{
+    timer_start = std::chrono::steady_clock::now();
+}
+
+float ObcBridge::readTime()
+{
+    std::chrono::time_point<std::chrono::steady_clock> now = std::chrono::steady_clock::now();
+    return std::chrono::duration<float, std::milli>(now - timer_start).count();
+}
+
+// --- LCM publishers ----------------------------------------------------------
+
+void ObcBridge::publishRunCommand(int8_t command_id)
+{
+    payload_messages::run_command_t msg;
+    msg.command_id = command_id;
+    std::cout << "[INFO] Publishing to RUN_COMMAND: command_id=" << (int)command_id << std::endl;
+    lcm.publish("RUN_COMMAND", &msg);
 }

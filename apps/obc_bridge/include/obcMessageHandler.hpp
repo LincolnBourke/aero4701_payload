@@ -17,7 +17,7 @@ uartInterface.hpp.
 #define PYLD_STOP_ID        0xA2
 #define PYLD_STOP_ACK_ID    0xA3
 
-// Results transfer
+// File transfer - used for nominal & debug mode results transfer and for experiment settings file
 #define PYLD_REQUEST_TRANSFER_ID    0xA4
 #define PYLD_TRANSFER_ACK_ID        0xA5
 #define PYLD_TRANSFER_HEADER_ID     0xA6
@@ -25,6 +25,10 @@ uartInterface.hpp.
 #define PYLD_PACKET_ID              0xA8
 #define PYLD_PACKET_ACK_ID          0xA9
 #define PYLD_TRANSFER_COMPLETE_ID   0xAA
+
+// Debug mode
+#define PYLD_ENTER_DEBUG_ID 0xAB
+#define PYLD_DEBUG_ACK_ID   0xAC
 
 #define ACK_TIMEOUT 1000 // ms, time before a new message is sent because an acknowledge was not received
 
@@ -62,12 +66,23 @@ class ObcMessageHandler
 
         // Result transfer messages
         bool transmitTransferRequest();
+        bool transmitTransferAck();
         bool transmitHeader();
-        bool transmitResultsPacket();
+        bool transmitHeaderAck();
+        bool transmitResultsPacket(int packet_idx);
+        bool transmitPacketAck();
         bool transmitTransferComplete();
+        bool checkTransferRequest();
         bool checkTransferAck();
+        bool checkHeader();
         bool checkHeaderAck();
+        bool checkPacket();
         bool checkPacketAck();
+        bool checkTransferComplete();
+
+        // Debug mode messages
+        bool transmitDebugAck();
+        bool checkEnterDebugMsg();
 };
 
 #endif 

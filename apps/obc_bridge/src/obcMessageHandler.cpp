@@ -88,6 +88,33 @@ bool ObcMessageHandler::transmitTransferRequest()
     return transmitIdOnlyMessage(PYLD_REQUEST_TRANSFER_ID);
 }
 
+bool ObcMessageHandler::transmitTransferAck()
+{
+    return transmitIdOnlyMessage(PYLD_TRANSFER_ACK_ID);
+}
+
+bool ObcMessageHandler::transmitHeader()
+{
+    return transmitIdOnlyMessage(PYLD_TRANSFER_HEADER_ID);
+}
+
+bool ObcMessageHandler::transmitHeaderAck()
+{
+    return transmitIdOnlyMessage(PYLD_HEADER_ACK_ID);
+}
+
+bool ObcMessageHandler::transmitResultsPacket(int packet_idx)
+{
+    // TODO
+    (void)packet_idx;
+    return transmitIdOnlyMessage(PYLD_PACKET_ID);
+}
+
+bool ObcMessageHandler::transmitPacketAck()
+{
+    return transmitIdOnlyMessage(PYLD_PACKET_ACK_ID);
+}
+
 bool ObcMessageHandler::transmitTransferComplete()
 {
     return transmitIdOnlyMessage(PYLD_TRANSFER_COMPLETE_ID);
