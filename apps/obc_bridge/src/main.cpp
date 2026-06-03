@@ -3,4 +3,5 @@
 int main()
 {
     ObcBridge obc_bridge;
+    obc_bridge.run();
 }

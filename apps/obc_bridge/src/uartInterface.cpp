@@ -6,7 +6,7 @@
 #include <chrono>
 #include <cstring>
 
-#define UART_FILE "/dev/..."
+#define UART_FILE "/dev/pts/3"
 #define BAUD_RATE B115200
 
 UartInterface::UartInterface() {};
@@ -94,6 +94,7 @@ bool UartInterface::receive(UART_msg_t* msg, uint32_t timeout_us)
 
         // Reset inter-byte timeout when a byte is read
         last_byte_time = std::chrono::steady_clock::now();
+        byte = rx_buffer[0];
 
         switch (state)
         {
@@ -148,7 +149,11 @@ bool UartInterface::receive(UART_msg_t* msg, uint32_t timeout_us)
 
                 if (crc_idx == RX_CRC_BYTES)
                 {
-                    return UART_checkCRC(msg);
+                    if (UART_checkCRC(msg))
+                    {
+                        std::cout << "[INFO] Message received over UART." << std::endl;
+                        return true;
+                    }
                 }
                 break;
             }
@@ -161,8 +166,7 @@ bool UartInterface::receive(UART_msg_t* msg, uint32_t timeout_us)
         }
     }
 
-    std::cout << "[INFO] Message received over UART." << std::endl; 
-    return true;
+    return false;
 }
 
 bool UartInterface::transmit(UART_msg_t* msg)
@@ -192,12 +196,13 @@ bool UartInterface::transmit(UART_msg_t* msg)
     data[crc_offset]     = msg->crc & 0xFF;
     data[crc_offset + 1] = msg->crc >> 8;
 
-    // Write the data to the port 
-    long unsigned int bytes_transmitted = write(uart_filestream, &data, msg->length + RX_HEADER_BYTES + RX_CRC_BYTES);
-    if (bytes_transmitted < sizeof(data))
-    {   
+    // Write the data to the port
+    long unsigned int expected = msg->length + RX_HEADER_BYTES + RX_CRC_BYTES;
+    long unsigned int bytes_transmitted = write(uart_filestream, &data, expected);
+    if (bytes_transmitted < expected)
+    {
         std::cout << "[ERROR] Not all bytes from buffer written to UART port." << std::endl;
-        return false; 
+        return false;
     }
 
     std::cout << "[INFO] Message transmitted over UART." << std::endl;

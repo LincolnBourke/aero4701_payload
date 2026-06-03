@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <iomanip>
 #include <cstring>
 
 #define RESULT_TIMESTEPS 150
@@ -210,6 +211,7 @@ bool ObcMessageHandler::deserialise(std::string trajectory_path, std::string set
 
     // Write trajectory CSV: zip position[i] and attitude[i] onto each row
     std::ofstream traj_file(trajectory_path);
+    traj_file << std::fixed << std::setprecision(6);
     if (!traj_file.is_open())
     {
         std::cout << "[ERROR] deserialise: could not open trajectory file for writing." << std::endl;
@@ -225,6 +227,7 @@ bool ObcMessageHandler::deserialise(std::string trajectory_path, std::string set
 
     // Write scalar settings CSV: frame_rate, threshold, exposure, satellite attitude
     std::ofstream settings_file(settings_path);
+    settings_file << std::fixed << std::setprecision(6);
     if (!settings_file.is_open())
     {
         std::cout << "[ERROR] deserialise: could not open settings file for writing." << std::endl;

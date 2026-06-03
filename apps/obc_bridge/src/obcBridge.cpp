@@ -8,8 +8,8 @@
 #define WAIT_ACK_TIMEOUT 1000 // ms
 #define RESULTS_FILEPATH ""
 #define DEBUG_RESULTS_FILEPATH ""
-#define TRAJECTORY_SETTINGS_FILEPATH "data/trajectory_settings.csv"
-#define SCALAR_SETTINGS_FILEPATH "data/scalar_settings.csv"
+#define TRAJECTORY_SETTINGS_FILEPATH "data/test_obc_nominal/trajectory_settings.csv"
+#define SCALAR_SETTINGS_FILEPATH "data/test_obc_nominal/scalar_settings.csv"
 
 ObcBridge::ObcBridge()
     : lcm(), lcm_handler(), obc_messager()
@@ -25,37 +25,63 @@ ObcBridge::ObcBridge()
 
 ObcBridge::~ObcBridge() {};
 
+// Returns a human-readable label for each top-level state
+static const char* stateName(ObcBridgeState s)
+{
+    switch (s)
+    {
+        case ObcBridgeState::IDLE:                        return "IDLE";
+        case ObcBridgeState::RECEIVE_SETTINGS:            return "RECEIVE_SETTINGS";
+        case ObcBridgeState::DO_EXPERIMENT:               return "DO_EXPERIMENT";
+        case ObcBridgeState::TRANSMIT_EXPERIMENT_RESULTS: return "TRANSMIT_EXPERIMENT_RESULTS";
+        case ObcBridgeState::TRANSMIT_EXPERIMENT_ERROR:   return "TRANSMIT_EXPERIMENT_ERROR";
+        case ObcBridgeState::DEBUG:                       return "DEBUG";
+        case ObcBridgeState::TRANSMIT_DEBUG_RESULTS:      return "TRANSMIT_DEBUG_RESULTS";
+        default:                                          return "UNKNOWN";
+    }
+}
+
 // Runs the top-level state machine
 void ObcBridge::run()
 {
     ObcBridgeState state = ObcBridgeState::IDLE;
+    std::cout << "[INFO] ObcBridge state: " << stateName(state) << std::endl;
 
     while (true)
     {
+        ObcBridgeState next;
+
         switch (state)
         {
             case ObcBridgeState::IDLE:
-                state = handleIdleState();
+                next = handleIdleState();
                 break;
             case ObcBridgeState::RECEIVE_SETTINGS:
-                state = handleReceiveSettingsState();
+                next = handleReceiveSettingsState();
                 break;
             case ObcBridgeState::DO_EXPERIMENT:
-                state = handleDoExperimentState();
+                next = handleDoExperimentState();
                 break;
             case ObcBridgeState::TRANSMIT_EXPERIMENT_RESULTS:
-                state = handleTransmitResultState();
+                next = handleTransmitResultState();
                 break;
             case ObcBridgeState::TRANSMIT_EXPERIMENT_ERROR:
-                state = handleTransmitErrorState();
+                next = handleTransmitErrorState();
                 break;
             case ObcBridgeState::DEBUG:
-                state = handleDebugState();
+                next = handleDebugState();
                 break;
             case ObcBridgeState::TRANSMIT_DEBUG_RESULTS:
-                state = handleTransmitDebugResultsState();
+                next = handleTransmitDebugResultsState();
                 break;
         }
+
+        // Log only on actual state transitions
+        if (next != state)
+            std::cout << "[INFO] ObcBridge state: " << stateName(state)
+                      << " -> " << stateName(next) << std::endl;
+
+        state = next;
     }
 }
 
@@ -310,6 +336,7 @@ void ObcBridge::startTimer()
     timer_start = std::chrono::steady_clock::now();
 }
 
+// Returns the time since startTimer() was called in milliseconds
 float ObcBridge::readTime()
 {
     std::chrono::time_point<std::chrono::steady_clock> now = std::chrono::steady_clock::now();
