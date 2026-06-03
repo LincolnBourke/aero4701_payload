@@ -179,6 +179,7 @@ state_t PayloadController::handleCalibrateServosState()
             std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
             return ERROR;
         }
+        std::cout << "Target position: " << calibration_trajectory.poses[i].position << std::endl;
 
         // 20ms = 50Hz, matches servo PWM update rate 
         // usleep(20000); 
@@ -198,6 +199,13 @@ state_t PayloadController::handleCalibrateServosState()
 
         platform.setCalibrationOffsets(offsets); 
         std::cout << "[INFO] Calibration offsets set." << std::endl;
+
+        while (true) {
+            usleep(1000); 
+            // PlatformPose platform_pose; 
+            // platform_pose = platform.getPlatformPose(); 
+            // std::cout << "[INFO] Plaform z: " << platform_pose.position[2] << std::endl << std::flush; 
+        }
     }
     else 
     {
