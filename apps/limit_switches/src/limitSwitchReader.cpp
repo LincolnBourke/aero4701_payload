@@ -135,24 +135,20 @@ void LimitSwitchReader::_checkAndPublish() {
     }
 
     // == Build and publish LCM message =========================================
-    if (!changed) {
-        return; // Nothing to publish
-    }
-    else {
-        payload_messages::switch_state_t msg{};
-        msg.switch1 = current_states[0];
-        msg.switch2 = current_states[1];
-        msg.switch3 = current_states[2];
+    payload_messages::switch_state_t msg{};
+    msg.switch1 = current_states[0];
+    msg.switch2 = current_states[1];
+    msg.switch3 = current_states[2];
 
-        // Get time
-        auto t0 = std::chrono::steady_clock::now();
-        msg.timestamp = std::chrono::duration_cast<std::chrono::microseconds>(
-            t0.time_since_epoch()
-        ).count();
+    auto t0 = std::chrono::steady_clock::now();
+    msg.timestamp = std::chrono::duration_cast<std::chrono::microseconds>(
+        t0.time_since_epoch()
+    ).count();
 
-        lcm.publish(_channel_name, &msg);
+    lcm.publish(_channel_name, &msg);
 
-        // Log the change
+    // Log only on change
+    if (changed) {
         for (std::size_t i = 0; i < PINS.size(); ++i) {
             if (current_states[i] != _prev_states[i]) {
                 std::cout << "  Pin " << PINS[i].physicalPin
@@ -161,8 +157,7 @@ void LimitSwitchReader::_checkAndPublish() {
                         << " -> " << current_states[i] << "\n";
             }
         }
-        std::cout << "-----------\n"; 
-
+        std::cout << "-----------\n";
         _prev_states = current_states;
     }
 }
