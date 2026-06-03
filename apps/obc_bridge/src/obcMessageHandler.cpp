@@ -306,38 +306,50 @@ bool ObcMessageHandler::serialiseResults(std::string file_path)
         ss.clear();
         ss.str(line);
 
-        // Iterate through entries in the row
-        while (std::getline(ss, raw_entry, ','))
+        if (line_num < 3 * RESULT_TIMESTEPS)
         {
-            // Get the type of the next entry
-            size_t entry_size = line_num < 2 * RESULT_TIMESTEPS ? sizeof(float) : sizeof(int);
-
-            // If the last message is full add it to the queue and make a new message
-            if (msg.length + entry_size > RX_BUFFER_BYTES)
+            // Float rows: servo angles (0-149), camera position (150-299), camera attitude (300-449)
+            while (std::getline(ss, raw_entry, ','))
             {
-                msg.sof = UART_SOF;
-                msg.id = PYLD_PACKET_ID;
-                transmit_queue.push(msg);
-                num_msgs++;
+                // If the message is full, push it and start a new one
+                if (msg.length + sizeof(float) > RX_BUFFER_BYTES)
+                {
+                    msg.sof = UART_SOF;
+                    msg.id  = PYLD_PACKET_ID;
+                    transmit_queue.push(msg);
+                    num_msgs++;
 
-                // Zero initialise the new message and set its packet index
-                msg = {};
-                std::memcpy(&msg.payload[0], &num_msgs, sizeof(uint16_t));
-                msg.length = sizeof(uint16_t);
-            }
+                    msg = {};
+                    std::memcpy(&msg.payload[0], &num_msgs, sizeof(uint16_t));
+                    msg.length = sizeof(uint16_t);
+                }
 
-            // Add the entry to the latest message
-            if (line_num < 2 * RESULT_TIMESTEPS)
-            {
-                // The line is servo angles or a camera pose estimate, interpret as float
                 float value = std::stof(raw_entry);
                 std::memcpy(&msg.payload[msg.length], &value, sizeof(float));
                 msg.length += sizeof(float);
             }
-            else
+        }
+        else
+        {
+            // Histogram rows (450-599): single hex string, 2 chars per packed byte.
+            // Decode each pair of hex characters into a uint8_t and pack directly.
+            std::getline(ss, raw_entry);
+            for (size_t j = 0; j + 1 < raw_entry.size(); j += 2)
             {
-                // The line is camera data, interpret as an integer
-                uint8_t value = static_cast<uint8_t>(std::stoi(raw_entry));
+                // If the message is full, push it and start a new one
+                if (msg.length + sizeof(uint8_t) > RX_BUFFER_BYTES)
+                {
+                    msg.sof = UART_SOF;
+                    msg.id  = PYLD_PACKET_ID;
+                    transmit_queue.push(msg);
+                    num_msgs++;
+
+                    msg = {};
+                    std::memcpy(&msg.payload[0], &num_msgs, sizeof(uint16_t));
+                    msg.length = sizeof(uint16_t);
+                }
+
+                uint8_t value = static_cast<uint8_t>(std::stoul(raw_entry.substr(j, 2), nullptr, 16));
                 std::memcpy(&msg.payload[msg.length], &value, sizeof(uint8_t));
                 msg.length += sizeof(uint8_t);
             }
