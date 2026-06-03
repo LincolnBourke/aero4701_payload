@@ -137,28 +137,39 @@ state_t PayloadController::handleCalibrateServosState()
     // Lower platform along trajectory until limit switches activate 
     int switch_states[3] = {0}; 
     bool switches_activated = false; 
+
     for (size_t i = 0; i < calibration_trajectory.times.size(); i++)
     {   
         // Check if the limit switches have activated
         lcm.handleTimeout(0);
-        if ( lcm_handler.checkSwitchState(switch_states) )
+
+        bool result;
+        result = lcm_handler.checkSwitchState(switch_states); 
+        printf("[INFO] Checked switch state, result %d, states [%d, %d, %d]\n:",
+            result, switch_states[0], switch_states[1], switch_states[2]); 
+
+        if ( result )
         {
             // New message 
             std::cout << "[INFO] New switch state: [ " << switch_states[0]; 
             std::cout << ", " << switch_states[1]; 
             std::cout << ", " << switch_states[2]; 
-            std::cout << "]\n"; 
+            std::cout << "]" << std::endl; 
 
             // If all activated, stop 
             if (switch_states[0] && switch_states[1] && switch_states[2])
             {
                 switches_activated = true; 
+
+                while (true) {
+                    std::cout << "[INFO] All switches activated " << std::endl; 
+                } 
                 break; 
             }
         }
 
         // Move platform along trajectory
-        if (platform.moveTo(calibration_trajectory.poses[i]) == false)
+        if ( platform.moveTo(calibration_trajectory.poses[i]) == false )
         {
             error.msg = "Could not move platform to starting pose during servo calibration.";
             std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;

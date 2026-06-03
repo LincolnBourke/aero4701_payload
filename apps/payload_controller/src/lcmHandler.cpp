@@ -87,6 +87,11 @@ bool LcmHandler::checkSwitchState( int (&switch_states)[3] )
     switch_states[1] = static_cast<int>(last_switch_state_msg.switch2);
     switch_states[2] = static_cast<int>(last_switch_state_msg.switch3);
 
+    printf("[INFO] Returning switch states [%d, %d, %d]\n", 
+            static_cast<int>(last_switch_state_msg.switch1),
+            static_cast<int>(last_switch_state_msg.switch2),
+            static_cast<int>(last_switch_state_msg.switch3) );
+
     switch_state_received = false;
     return true;
 }
