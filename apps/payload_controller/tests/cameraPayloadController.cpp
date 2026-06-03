@@ -311,15 +311,26 @@ state_t PayloadController::handleSaveResultsState()
     std::string results_dir = std::string(boot_dir) + "/experiment_results";
     std::filesystem::create_directories(results_dir);
 
-    // Write one zero record to initialise the file before Python appends
-    std::ofstream results_file(results_dir + "/experiment_results.bin", std::ios::binary);
+    //~ // Write one zero record to initialise the file before Python appends
+    //~ std::ofstream results_file(results_dir + "/experiment_results.bin", std::ios::binary);
+    //~ if (!results_file.is_open())
+    //~ {
+        //~ std::cout << "[ERROR] Failed to open results file." << std::endl;
+        //~ return ERROR;
+    //~ }
+    //~ float zeros[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    //~ results_file.write(reinterpret_cast<const char*>(zeros), sizeof(zeros));
+    //~ results_file.close();
+    
+    // NEW — write a CSV header row so the file is readable without the code
+    std::ofstream results_file(results_dir + "/experiment_results.csv");
     if (!results_file.is_open())
     {
         std::cout << "[ERROR] Failed to open results file." << std::endl;
         return ERROR;
     }
-    float zeros[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-    results_file.write(reinterpret_cast<const char*>(zeros), sizeof(zeros));
+    results_file << "tx,ty,tz,rx,ry,rz\n";
+    results_file << "0.0,0.0,0.0,0.0,0.0,0.0\n";
     results_file.close();
     
 

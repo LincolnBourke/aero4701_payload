@@ -622,9 +622,11 @@ def save_exp_video(picam2_, display_widget=False, save_debug_images=False, exp_t
         if frame_idx % WINDOW_SIZE == 0 and frame_idx > 0:
             hist_idx = frame_idx // WINDOW_SIZE
             if hist_idx < 150:
-                hist_binary = (event_hist > 0).astype(np.uint8)
-                hist_packed = np.packbits(hist_binary, axis=None)
-                hist_records.append(hist_packed.tobytes())
+                # ~ hist_binary = (event_hist > 0).astype(np.uint8)
+                # ~ hist_packed = np.packbits(hist_binary, axis=None)
+                # ~ hist_records.append(hist_packed.tobytes())
+                hist_uint8 = np.clip(event_hist, 0, 255).astype(np.uint8)
+                hist_records.append(hist_uint8.flatten())
 
         # Save debug images if enabled
         if save_debug_images:
@@ -682,6 +684,8 @@ def save_exp_video(picam2_, display_widget=False, save_debug_images=False, exp_t
                            # ~ baseline_folder="outputs/baseline",
                            # ~ pose_folder="outputs/baseline_pose",
                            # ~ save_debug_images=False):
+import csv
+
 def process_baseline_data(objpoints_3boards, mtx, dist, ROIS, CHESSBOARD=(5, 3),
                            baseline_folder="outputs/baseline",
                            pose_folder="outputs/baseline_pose",
@@ -698,9 +702,14 @@ def process_baseline_data(objpoints_3boards, mtx, dist, ROIS, CHESSBOARD=(5, 3),
     # os.makedirs(results_dir, exist_ok=True) # backup
     # results_file = open(os.path.join(results_dir, "experiment_results.bin"), "ab")
     
-    os.makedirs(results_dir, exist_ok=True)
-    results_file = open(os.path.join(results_dir, "experiment_results.bin"), "ab")
+    # ~ os.makedirs(results_dir, exist_ok=True)
+    # ~ results_file = open(os.path.join(results_dir, "experiment_results.bin"), "ab")
 
+    os.makedirs(results_dir, exist_ok=True)
+    csv_path = os.path.join(results_dir, "experiment_results.csv")
+    results_csv = open(csv_path, "a", newline="")
+    results_writer = csv.writer(results_csv)
+    
     for fname in images:
         img  = cv.imread(fname)
         gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
@@ -742,36 +751,53 @@ def process_baseline_data(objpoints_3boards, mtx, dist, ROIS, CHESSBOARD=(5, 3),
 
         if len(tvecs_all) == 0:
             # print(f"[WARNING] {fname}: no boards detected, writing zeros.")
-            results_file.write(struct.pack("<6f", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0))
+            # results_file.write(struct.pack("<6f", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0))
+            results_writer.writerow([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         else:
             # if len(tvecs_all) < 3:
                 # print(f"[WARNING] {fname}: only {len(tvecs_all)}/3 boards detected.")
             t_centre = np.mean(tvecs_all, axis=0)
             r_centre = np.mean(rvecs_all, axis=0)
-            results_file.write(struct.pack("<6f", t_centre[0], t_centre[1], t_centre[2],
-                                                  r_centre[0], r_centre[1], r_centre[2]))
-
+            # ~ results_file.write(struct.pack("<6f", t_centre[0], t_centre[1], t_centre[2],
+                                                  # ~ r_centre[0], r_centre[1], r_centre[2]))
+            results_writer.writerow([t_centre[0], t_centre[1], t_centre[2],
+                         r_centre[0], r_centre[1], r_centre[2]])
+    
         if save_debug_images:
             cv.imwrite(os.path.join(pose_folder, f"{name}_multi_pose.png"), img)
 
-    results_file.close()
+    # ~ results_file.close()
+    results_csv.close()
 
 
 # Save the experiment results
-# def save_exp_results(hist_records):
+import csv
+
 def save_exp_results(hist_records, results_dir="outputs/experiment_results"):
     # Setup output folders
     # results_dir = "outputs/experiment_results"
     
     os.makedirs(results_dir, exist_ok=True) # backup
     
-    # Write histogram records to binary file
-    results_file = open(os.path.join(results_dir, "experiment_results.bin"), "ab")
-    for record in hist_records:
-        results_file.write(record)
-    results_file.close()
+    # ~ # Write histogram records to binary file
+    # ~ results_file = open(os.path.join(results_dir, "experiment_results.bin"), "ab")
+    # ~ for record in hist_records:
+        # ~ results_file.write(record)
+    # ~ results_file.close()
     
+    # ~ print("[save_exp_results] [INFO] Experiment results saved\n")
+    
+    print(f"[save_exp_results] [INFO] hist_records count: {len(hist_records)}")
+    if len(hist_records) > 0:
+        print(f"[save_exp_results] [INFO] First record shape: {hist_records[0].shape}, dtype: {hist_records[0].dtype}")
+    
+    csv_path = os.path.join(results_dir, "experiment_results.csv")
+    with open(csv_path, "a", newline="") as f:
+        writer = csv.writer(f)
+        for record in hist_records:
+            writer.writerow(record.tolist())
     print("[save_exp_results] [INFO] Experiment results saved\n")
+    
 
 # Add output_dir param so cleanup targets the right boot folder
 def cleanup_images(cleanup_enabled=False, output_dir="outputs"):

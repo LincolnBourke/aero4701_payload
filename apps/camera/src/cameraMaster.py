@@ -66,7 +66,7 @@ class Camera:
         # Camera configuration
         self.params               = None
         self.saved_cam_settings   = None
-        self.debug_mode           = False
+        self.debug_mode           = True # change with flag from payload controller
         # Calibration results
         self.mtx                  = None
         self.dist                 = None
@@ -114,7 +114,6 @@ class Camera:
         
         print("[INFO] STATE: Calibrate\n")
         # Setup directories
-        # TODO not really necessary?
         # self.output_dir, self.calib_folder, self.baseline_folder, self.baseline_pose_folder = h.setup_directories()
         self.output_dir, self.calib_folder, self.baseline_folder, self.baseline_pose_folder = h.setup_directories(self.output_dir)
 
