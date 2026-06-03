@@ -6,6 +6,7 @@
 
 // Time to wait for an acknowledgement before repeating a message sent over UART
 #define WAIT_ACK_TIMEOUT 1000 // ms
+#define RESULTS_FILEPATH ""
 
 ObcBridge::ObcBridge()
     : lcm(), lcm_handler(), obc_messager()
@@ -176,17 +177,27 @@ ObcBridgeState ObcBridge::handleTransmitResultState()
 {
     TransmitResultState state = TransmitResultState::REQUEST_TRANSFER;
     float ack_timeout = ACK_TIMEOUT;
-    int packet_idx = 0; // index of the current packet to be sent over UART 
-    int num_packets = 0;
+    bool transmit_success;
 
-    // TODO: read and serialise the results before entering state machine
+    // Read and serialise the results before entering state machine
+    if (!obc_messager.serialiseResults(RESULTS_FILEPATH))
+    {
+        std::cout << "[ERROR] Failed to serialise results file." << std::endl;
+        return ObcBridgeState::IDLE;
+    }
 
     while (true)
     {
         switch (state)
         {
             case TransmitResultState::REQUEST_TRANSFER:
-                obc_messager.transmitTransferRequest();
+                transmit_success = obc_messager.transmitTransferRequest();
+                if (!transmit_success)
+                {
+                    std::cout << "[ERROR] Failed to transmit results transfer request to OBC." << std::endl;
+                    return ObcBridgeState::IDLE;
+                }
+
                 startTimer();
                 state = TransmitResultState::WAIT_TRANSFER_ACK;
                 break;
@@ -199,7 +210,13 @@ ObcBridgeState ObcBridge::handleTransmitResultState()
                 break;
             
             case TransmitResultState::SEND_HEADER:
-                obc_messager.transmitHeader();
+                transmit_success = obc_messager.transmitHeader();
+                if (!transmit_success)
+                {
+                    std::cout << "[ERROR] Failed to transmit results header to OBC." << std::endl;
+                    return ObcBridgeState::IDLE;
+                }
+
                 startTimer();
                 state = TransmitResultState::WAIT_HEADER_ACK;
                 break;
@@ -212,7 +229,12 @@ ObcBridgeState ObcBridge::handleTransmitResultState()
                 break;
 
             case TransmitResultState::SEND_PACKET:
-                obc_messager.transmitResultsPacket(packet_idx);
+                transmit_success = obc_messager.transmitResultsPacket();
+                if (!transmit_success)
+                {
+                    std::cout << "[ERROR] Failed to transmit results packet to OBC, retrying after timeout..." << std::endl;
+                }
+
                 startTimer();
                 state = TransmitResultState::WAIT_PACKET_ACK;
                 break;
@@ -220,20 +242,25 @@ ObcBridgeState ObcBridge::handleTransmitResultState()
             case TransmitResultState::WAIT_PACKET_ACK:
                 if (obc_messager.checkPacketAck() == true)
                 {
-                    if (packet_idx < num_packets - 1)
-                    {
-                        packet_idx++;
+                    if (!obc_messager.isTransmitQueueEmpty())
                         state = TransmitResultState::SEND_PACKET;
-                    }
                     else 
                         state = TransmitResultState::TRANSFER_COMPLETE;
                 }
                 else if (readTime() > ack_timeout)
-                    state = TransmitResultState::SEND_PACKET;
+                {
+                    obc_messager.transmitLastResultsPacket(); // retry the transmission
+                    startTimer();
+                }
                 break;
 
             case TransmitResultState::TRANSFER_COMPLETE:
-                obc_messager.transmitTransferComplete();
+                transmit_success = obc_messager.transmitTransferComplete();
+                if (!transmit_success)
+                {
+                    std::cout << "[ERROR] Failed to transmit transfer complete signal to OBC." << std::endl;
+                }
+
                 return ObcBridgeState::IDLE;
         }
     }

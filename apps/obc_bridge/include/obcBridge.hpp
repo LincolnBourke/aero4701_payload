@@ -86,9 +86,6 @@ class ObcBridge
         // LCM message publishers
         void publishRunCommand(int8_t command_id);
 
-        // File i/o
-        // TODO
-
     public: 
         // Setup UART port 
         ObcBridge();
