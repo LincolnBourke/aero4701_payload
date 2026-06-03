@@ -5,7 +5,7 @@
 #include <fstream>
 #include <sstream>
 
-#define TRAJECTORY_FILE_STEP 500 // ms, time between successive poses in the trajectory file
+#define TRAJECTORY_FILE_STEP 1000 // ms, time between successive poses in the trajectory file
 #define TRAJECTORY_STRUCT_STEP 250 // ms, time between successive poses in the trajectory struct
 #define TRAJECTORY_FILE_PATH "data/trajectory_simple.csv"
 
@@ -143,12 +143,16 @@ state_t PayloadController::handleCalibrateServosState()
         // Check if the limit switches have activated
         lcm.handleTimeout(0);
 
-        bool result;
-        result = lcm_handler.checkSwitchState(switch_states); 
-        printf("[INFO] Checked switch state, result %d, states [%d, %d, %d]\n:",
-            result, switch_states[0], switch_states[1], switch_states[2]); 
+        // bool result;
+        bool all_flag; // If all switches have been tripped 
+        lcm_handler.checkSwitchState(switch_states, all_flag); 
+        // result = lcm_handler.checkSwitchState(switch_states, all_flag); 
 
-        if ( result )
+        // printf("[INFO] Checked switch state, result %d, states [%d, %d, %d]\n:",
+        //     result, switch_states[0], switch_states[1], switch_states[2]); 
+        // std::cout << std::flush; 
+
+        if ( all_flag ) 
         {
             // New message 
             std::cout << "[INFO] New switch state: [ " << switch_states[0]; 
@@ -157,13 +161,9 @@ state_t PayloadController::handleCalibrateServosState()
             std::cout << "]" << std::endl; 
 
             // If all activated, stop 
-            if (switch_states[0] && switch_states[1] && switch_states[2])
+            if ( all_flag )
             {
                 switches_activated = true; 
-
-                while (true) {
-                    std::cout << "[INFO] All switches activated " << std::endl; 
-                } 
                 break; 
             }
         }
@@ -175,12 +175,17 @@ state_t PayloadController::handleCalibrateServosState()
             std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
             return ERROR;
         }
+
+        // 20ms = 50Hz, matches servo PWM update rate 
+        // usleep(20000); 
+        usleep(50000); 
     }
     
     // Set calibration offset for the Stewart platform
     if (switches_activated)
     {
-        // TODO
+        // TODO 
+        // Need to record current command angle as -41.58 degs
     }
     else 
     {

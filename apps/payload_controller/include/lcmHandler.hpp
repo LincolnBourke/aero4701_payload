@@ -24,6 +24,7 @@ class LcmHandler
 
         payload_messages::switch_state_t last_switch_state_msg;
         bool switch_state_received;
+        bool all_switched; 
 
     public:
         LcmHandler();
@@ -45,7 +46,7 @@ class LcmHandler
         // Returns true if a message was received and stores the id
         bool checkRunCommand(int& command_id);
         bool checkSaveComplete(int& return_id);
-        bool checkSwitchState( int (&switch_states)[3] ); 
+        bool checkSwitchState( int (&switch_states)[3], bool &all_flag ); 
 };
 
 #endif

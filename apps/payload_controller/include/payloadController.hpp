@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 #include <chrono>
+#include <unistd.h>
 
 // Define a trajectory
 typedef struct {

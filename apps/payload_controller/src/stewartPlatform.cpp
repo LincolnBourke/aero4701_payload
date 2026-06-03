@@ -13,7 +13,7 @@
 // ***** Stewart Platform Geometry *****
 
 // Distance between platform origin and the bottom of the platform 
-#define PLATFORM_Z_OFFSET 10.0 // 3.60 // mm
+#define PLATFORM_Z_OFFSET 8.0 // 3.60 // mm
 
 // Distance between the base origin and the top of the servo brace 
 #define BASE_Z_OFFSET 9.4248 // mm
@@ -503,12 +503,12 @@ void StewartPlatform::publishServoTargets()
     }
 
     // Print the channel and each servo angle being published
-    std::cout << "[INFO] Publishing to SERVO_TARGETS:";
-    for (int i = 0; i < NUM_SERVOS; i++)
-    {
-        std::cout << " s" << i << "=" << msg.angles[i];
-    }
-    std::cout << std::endl;
+    // std::cout << "[INFO] Publishing to SERVO_TARGETS:";
+    // for (int i = 0; i < NUM_SERVOS; i++)
+    // {
+    //     std::cout << " s" << i << "=" << msg.angles[i];
+    // }
+    // std::cout << std::endl;
 
     lcm.publish("SERVO_TARGETS", &msg);
 }

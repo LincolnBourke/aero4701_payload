@@ -4,7 +4,7 @@
 int main()
 {
     try {
-        float check_rate = 100.0f; // Hz
+        float check_rate = 10.0f; // Hz
         std::string channel_name = "LIMIT_SWITCH_STATES";
 
         LimitSwitchReader reader(check_rate, channel_name);

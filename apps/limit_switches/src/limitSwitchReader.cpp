@@ -147,6 +147,12 @@ void LimitSwitchReader::_checkAndPublish() {
 
     lcm.publish(_channel_name, &msg);
 
+    // printf("[INFO] Published message on channel %s with states [%d, %d, %d]\n", 
+    //         _channel_name.c_str(), 
+    //         static_cast<int>(msg.switch1),
+    //         static_cast<int>(msg.switch2),
+    //         static_cast<int>(msg.switch3) );
+
     // Log only on change
     if (changed) {
         for (std::size_t i = 0; i < PINS.size(); ++i) {
