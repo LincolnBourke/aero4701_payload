@@ -9,10 +9,10 @@
 #define TRAJECTORY_STRUCT_STEP 250 // ms, time between successive poses in the trajectory struct
 #define TRAJECTORY_FILE_PATH "data/trajectory_simple.csv"
 
-#define CALIBRATION_END_POINT_STEP 5000 // ms
+#define CALIBRATION_END_POINT_STEP 1000 // ms
 #define CALIBRATION_STRUCT_STEP 20 // ms
 #define CALIBRATION_START_Z 15 // mm
-#define CALIBRATION_END_Z 0 // mm
+#define CALIBRATION_END_Z 2 // mm
 
 // Angle of the servos when switches activated 
     // Obtained from CAD 
@@ -150,11 +150,11 @@ state_t PayloadController::handleCalibrateServosState()
         // bool result;
         bool all_flag; // If all switches have been tripped 
         lcm_handler.checkSwitchState(switch_states, all_flag); 
-        // result = lcm_handler.checkSwitchState(switch_states, all_flag); 
+        auto result = lcm_handler.checkSwitchState(switch_states, all_flag); 
 
-        // printf("[INFO] Checked switch state, result %d, states [%d, %d, %d]\n:",
-        //     result, switch_states[0], switch_states[1], switch_states[2]); 
-        // std::cout << std::flush; 
+        printf("[INFO] Checked switch state, result %d, states [%d, %d, %d]\n:",
+            result, switch_states[0], switch_states[1], switch_states[2]); 
+        std::cout << std::flush; 
 
         if ( all_flag ) 
         {
@@ -179,11 +179,11 @@ state_t PayloadController::handleCalibrateServosState()
             std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
             return ERROR;
         }
-        std::cout << "Target position: " << calibration_trajectory.poses[i].position << std::endl;
+        std::cout << "Target position: " << calibration_trajectory.poses[i].position.transpose() << std::endl;
 
         // 20ms = 50Hz, matches servo PWM update rate 
         // usleep(20000); 
-        usleep(50000); 
+        usleep(100000); 
     }
     
     // Set calibration offset for the Stewart platform
@@ -193,6 +193,7 @@ state_t PayloadController::handleCalibrateServosState()
         // Offset = physical - commanded, applied in publishServoTargets().
         const auto& commanded = platform.getServoTargets();
         std::array<float, NUM_SERVOS> offsets;
+        std::cout << "Commanded: " << commanded[0] * 180/M_PI << " " << commanded[1] * 180/M_PI << std::endl; 
 
         for (int i = 0; i < NUM_SERVOS; i++)
             offsets[i] = PHYSICAL_ANGLE_AT_ACTIVATION - commanded[i];
@@ -213,6 +214,8 @@ state_t PayloadController::handleCalibrateServosState()
         // std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
         // return ERROR;
     }
+
+    while (true) {};
 
     // Automatically transition to camera calibration when the servos are calibrated
     std::cout << "[INFO] Payload controller state set to CALIBRATE_CAMERA." << std::endl;

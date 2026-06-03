@@ -504,10 +504,10 @@ void StewartPlatform::publishServoTargets()
     }
 
     // Print the channel and each servo angle being published
-    std::cout << "[INFO] Publishing to SERVO_TARGETS:";
+    std::cout << "[INFO] Publishing to SERVO_TARGETS: ";
     for (int i = 0; i < NUM_SERVOS; i++)
     {
-        std::cout << " s" << i << "=" << msg.angles[i];
+        std::cout << msg.angles[i] * 180/M_PI << " ";
     }
     std::cout << std::endl;
 
