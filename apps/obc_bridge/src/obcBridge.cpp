@@ -262,9 +262,19 @@ ObcBridgeState ObcBridge::handleTransmitResultState()
                     std::cout << "[ERROR] Failed to transmit transfer complete signal to OBC." << std::endl;
                 }
 
-                return ObcBridgeState::IDLE;
-
-                // add ack for transfer complete
+                startTimer();
+                state = TransmitResultState::TRANSFER_COMPLETE_ACK;
+                break; 
+            
+            case TransmitResultState::TRANSFER_COMPLETE_ACK:
+                if (obc_messager.checkTransferCompleteAck() == true)
+                    return ObcBridgeState::IDLE;
+                else if (readTime() > ack_timeout)
+                {
+                    obc_messager.transmitTransferComplete();
+                    startTimer();
+                }
+                break;
         }
     }
 

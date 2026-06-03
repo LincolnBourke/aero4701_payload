@@ -143,6 +143,11 @@ bool ObcMessageHandler::checkPacketAck()
     return checkForMessage(PYLD_PACKET_ACK_ID);
 }
 
+bool ObcMessageHandler::checkTransferCompleteAck()
+{
+    return checkForMessage(PYLD_TRANSFER_COMPLETE_ACK_ID);
+}
+
 // --- Experiment settings transfer messages -----------------------------------
 
 bool ObcMessageHandler::transmitTransferAck()
@@ -165,7 +170,7 @@ bool ObcMessageHandler::checkTransferRequest()
     return checkForMessage(PYLD_TRANSFER_ACK_ID);
 }
 
-// bool ObcMessageHandler::
+
 
 // --- Debug messages ----------------------------------------------------------
 

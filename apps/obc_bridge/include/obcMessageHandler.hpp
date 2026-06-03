@@ -20,17 +20,18 @@ uartInterface.hpp.
 #define PYLD_STOP_ACK_ID    0xA3
 
 // File transfer - used for nominal & debug mode results transfer and for experiment settings file
-#define PYLD_REQUEST_TRANSFER_ID    0xA4
-#define PYLD_TRANSFER_ACK_ID        0xA5
-#define PYLD_TRANSFER_HEADER_ID     0xA6
-#define PYLD_HEADER_ACK_ID          0xA7
-#define PYLD_PACKET_ID              0xA8
-#define PYLD_PACKET_ACK_ID          0xA9
-#define PYLD_TRANSFER_COMPLETE_ID   0xAA
+#define PYLD_REQUEST_TRANSFER_ID        0xA4
+#define PYLD_TRANSFER_ACK_ID            0xA5
+#define PYLD_TRANSFER_HEADER_ID         0xA6
+#define PYLD_HEADER_ACK_ID              0xA7
+#define PYLD_PACKET_ID                  0xA8
+#define PYLD_PACKET_ACK_ID              0xA9
+#define PYLD_TRANSFER_COMPLETE_ID       0xAA
+#define PYLD_TRANSFER_COMPLETE_ACK_ID   0xAB
 
 // Debug mode
-#define PYLD_ENTER_DEBUG_ID 0xAB
-#define PYLD_DEBUG_ACK_ID   0xAC
+#define PYLD_ENTER_DEBUG_ID 0xAC
+#define PYLD_DEBUG_ACK_ID   0xAD
 
 #define ACK_TIMEOUT 1000 // ms, time before a new message is sent because an acknowledge was not received
 
@@ -81,6 +82,7 @@ class ObcMessageHandler
         bool checkTransferAck();
         bool checkHeaderAck();
         bool checkPacketAck();
+        bool checkTransferCompleteAck();
 
         // Messages for OBC -> Payload comms
         bool transmitTransferAck();

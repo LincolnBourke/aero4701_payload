@@ -42,7 +42,8 @@ enum class TransmitResultState
     WAIT_HEADER_ACK,
     SEND_PACKET,
     WAIT_PACKET_ACK,
-    TRANSFER_COMPLETE
+    TRANSFER_COMPLETE,
+    TRANSFER_COMPLETE_ACK
 };
 
 enum class TransmitErrorState
