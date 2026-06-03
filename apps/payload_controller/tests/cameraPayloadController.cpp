@@ -9,6 +9,8 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <filesystem>
+
 
 #define TRAJECTORY_FILE_STEP 500 // ms, time between successive poses in the trajectory file
 #define TRAJECTORY_STRUCT_STEP 250 // ms, time between successive poses in the trajectory struct
@@ -92,7 +94,7 @@ void PayloadController::run()
 
 state_t PayloadController::handleIdleState()
 {
-    int command_id; 
+    // int command_id; // unused
 
     // Check if a run command has been published
     // lcm.handleTimeout(0);
@@ -111,7 +113,7 @@ state_t PayloadController::handleIdleState()
     // QUESTION: What doees lcm.handleTimeout do
     // DUMMY: Remove OBC comms. Automatically transition after 3s
     std::this_thread::sleep_for(std::chrono::seconds(3));
-    std::cout << "[INFO] State set to READ_TRAJECTORY." << std::endl;
+    std::cout << "[INFO] Payload controller state set to READ_TRAJECTORY." << std::endl;
     return READ_TRAJECTORY;
 }
 
@@ -186,17 +188,13 @@ state_t PayloadController::handleDeployState()
     //     }
     // }
 
-    // DUMMY: Removed trajectory functionaloty. Set platform_deployed to true for automatic transition
+    // DUMMY: Removed trajectory functionality. Set platform_deployed to true for automatic transition
     bool platform_deployed;
     platform_deployed = true;
 
     // Check if the platform is fully deployed 
     if (platform_deployed == true)
     {
-        std::cout << "[INFO] Payload controller state set to RUNNING." << std::endl;
-        experiment_start_time = std::chrono::steady_clock::now(); // Start timing experiment
-        trajectory_step = 0; // Track trajectory from the start
-        
         // Publish deploy to camera 
         publishCameraCommand(DEPLOY, DEBUG_MODE);
 
@@ -206,6 +204,11 @@ state_t PayloadController::handleDeployState()
             std::cout << "[INFO] Payload controller state set to TERMINATE_RUN." << std::endl;
             return TERMINATE_RUN;
         }
+        
+        std::cout << "[INFO] Payload controller state set to RUNNING." << std::endl;
+        experiment_start_time = std::chrono::steady_clock::now(); // Start timing experiment
+        trajectory_step = 0; // Track trajectory from the start
+        
         return RUNNING; 
     }
 
@@ -215,7 +218,7 @@ state_t PayloadController::handleDeployState()
 state_t PayloadController::handleRunningState()
 {
     bool trajectory_complete;
-    int command_id;
+    // int command_id; //unused
 
     // QUESTION: Does trajectory_step persist from previous state since in {}. And where is it incremented
 
@@ -223,6 +226,7 @@ state_t PayloadController::handleRunningState()
     if (trajectory_step == 0)
     {
         // Give camera python script a second to catch up
+        std::cout << "[INFO] Publish RUNNING to camera" << std::endl;
         std::this_thread::sleep_for(std::chrono::seconds(1));
         publishCameraCommand(RUNNING, DEBUG_MODE);
     }
@@ -274,8 +278,7 @@ state_t PayloadController::handleSaveResultsState()
     if (!results_file.is_open())
     {
         std::cout << "[ERROR] Failed to open results file." << std::endl;
-        state = ERROR;
-        break;
+        return ERROR;
     }
     float zeros[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
     results_file.write(reinterpret_cast<const char*>(zeros), sizeof(zeros));
