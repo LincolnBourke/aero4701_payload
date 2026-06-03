@@ -622,11 +622,16 @@ def save_exp_video(picam2_, display_widget=False, save_debug_images=False, exp_t
         if frame_idx % WINDOW_SIZE == 0 and frame_idx > 0:
             hist_idx = frame_idx // WINDOW_SIZE
             if hist_idx < 150:
+                # ~ # 1 bit version to bin
                 # ~ hist_binary = (event_hist > 0).astype(np.uint8)
                 # ~ hist_packed = np.packbits(hist_binary, axis=None)
                 # ~ hist_records.append(hist_packed.tobytes())
-                hist_uint8 = np.clip(event_hist, 0, 255).astype(np.uint8)
-                hist_records.append(hist_uint8.flatten())
+                # ~ # 8 bit version to csv
+                # ~ hist_uint8 = np.clip(event_hist, 0, 255).astype(np.uint8)
+                # ~ hist_records.append(hist_uint8.flatten())
+                # 1 bit to csv
+                hist_binary = (event_hist > 0).astype(np.uint8)
+                hist_records.append(hist_binary.flatten())
 
         # Save debug images if enabled
         if save_debug_images:
