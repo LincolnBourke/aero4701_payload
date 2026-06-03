@@ -6,7 +6,7 @@
 
 // Time to wait for an acknowledgement before repeating a message sent over UART
 #define WAIT_ACK_TIMEOUT 1000 // ms
-#define RESULTS_FILEPATH "" 
+#define RESULTS_FILEPATH ""
 #define DEBUG_RESULTS_FILEPATH ""
 
 ObcBridge::ObcBridge()
@@ -61,24 +61,27 @@ void ObcBridge::run()
 
 ObcBridgeState ObcBridge::handleIdleState()
 {
+    // Drain all available UART messages into the receive queue
+    obc_messager.drainUart();
+
     // Transition state depending on OBC message sent over UART
-    if (obc_messager.checkStartMsg())
+    if (obc_messager.checkMessage(PYLD_START_ID))
     {
         // Requested to start payload experiment
-        obc_messager.transmitStartAck();
+        obc_messager.transmit(PYLD_START_ACK_ID);
         return ObcBridgeState::DO_EXPERIMENT;
     }
-    else if (obc_messager.checkTransferRequest())
+    else if (obc_messager.checkMessage(PYLD_REQUEST_TRANSFER_ID))
     {
         // Request from OBC to transfer a data file
         // Assume transfer requests are for the experiment settings file
-        obc_messager.transmitTransferAck();
+        obc_messager.transmit(PYLD_TRANSFER_ACK_ID);
         return ObcBridgeState::RECEIVE_SETTINGS;
     }
-    else if (obc_messager.checkEnterDebugMsg())
+    else if (obc_messager.checkMessage(PYLD_ENTER_DEBUG_ID))
     {
         // Request from OBC to enter debug mode
-        obc_messager.transmitDebugAck();
+        obc_messager.transmit(PYLD_DEBUG_ACK_ID);
         return ObcBridgeState::DEBUG;
     }
 
@@ -89,19 +92,23 @@ ObcBridgeState ObcBridge::handleReceiveSettingsState()
 {
     ReceiveSettingsState state = ReceiveSettingsState::WAIT_HEADER;
     float ack_timeout = ACK_TIMEOUT;
-    int packet_idx = 0;
-    int num_packets = 0; // TODO: populated from header
+
+    // Reset file receive buffer from any prior transfer attempt
+    obc_messager.clearFileBuffer();
 
     startTimer();
 
     while (true)
     {
+        // Drain all available UART messages into the receive queue once per cycle
+        obc_messager.drainUart();
+
         switch (state)
         {
             case ReceiveSettingsState::WAIT_HEADER:
                 if (obc_messager.checkHeader() == true)
                 {
-                    obc_messager.transmitHeaderAck();
+                    obc_messager.transmit(PYLD_HEADER_ACK_ID);
                     startTimer();
                     state = ReceiveSettingsState::WAIT_PACKET;
                 }
@@ -112,10 +119,9 @@ ObcBridgeState ObcBridge::handleReceiveSettingsState()
             case ReceiveSettingsState::WAIT_PACKET:
                 if (obc_messager.checkPacket() == true)
                 {
-                    obc_messager.transmitPacketAck();
-                    if (packet_idx < num_packets - 1)
+                    obc_messager.transmit(PYLD_PACKET_ACK_ID);
+                    if (!obc_messager.isReceiveComplete())
                     {
-                        packet_idx++;
                         startTimer();
                         state = ReceiveSettingsState::WAIT_PACKET;
                     }
@@ -133,7 +139,7 @@ ObcBridgeState ObcBridge::handleReceiveSettingsState()
                 break;
 
             case ReceiveSettingsState::WAIT_TRANSFER_COMPLETE:
-                if (obc_messager.checkTransferComplete() == true)
+                if (obc_messager.checkMessage(PYLD_TRANSFER_COMPLETE_ID) == true)
                     return ObcBridgeState::IDLE;
                 else if (readTime() > ack_timeout)
                 {
@@ -154,10 +160,13 @@ ObcBridgeState ObcBridge::handleDoExperimentState()
     // Start the payload experiment
     publishRunCommand(Commands::RunId::RUN_CONTROLLER);
 
-    // Poll for stop run messages from the OBC and run complete messages from 
+    // Poll for stop run messages from the OBC and run complete messages from
     // the payload controller
     while (true)
     {
+        // Drain all available UART messages into the receive queue once per cycle
+        obc_messager.drainUart();
+
         if (lcm_handler.checkRunResult(run_result_id) == true)
         {
             if (run_result_id == Commands::RunResult::RUN_SUCCESS)
@@ -167,7 +176,7 @@ ObcBridgeState ObcBridge::handleDoExperimentState()
                 return ObcBridgeState::TRANSMIT_EXPERIMENT_ERROR;
         }
 
-        if (obc_messager.checkStopMsg())
+        if (obc_messager.checkMessage(PYLD_STOP_ID))
         {
             publishRunCommand(Commands::RunId::STOP_CONTROLLER);
             return ObcBridgeState::IDLE;
@@ -192,10 +201,13 @@ ObcBridgeState ObcBridge::handleTransmitResultState()
 
     while (true)
     {
+        // Drain all available UART messages into the receive queue once per cycle
+        obc_messager.drainUart();
+
         switch (state)
         {
             case TransmitResultState::REQUEST_TRANSFER:
-                transmit_success = obc_messager.transmitTransferRequest();
+                transmit_success = obc_messager.transmit(PYLD_REQUEST_TRANSFER_ID);
                 if (!transmit_success)
                 {
                     std::cout << "[ERROR] Failed to transmit results transfer request to OBC." << std::endl;
@@ -205,14 +217,14 @@ ObcBridgeState ObcBridge::handleTransmitResultState()
                 startTimer();
                 state = TransmitResultState::WAIT_TRANSFER_ACK;
                 break;
-            
+
             case TransmitResultState::WAIT_TRANSFER_ACK:
-                if (obc_messager.checkTransferAck() == true)
+                if (obc_messager.checkMessage(PYLD_TRANSFER_ACK_ID) == true)
                     state = TransmitResultState::SEND_HEADER;
                 else if (readTime() > ack_timeout)
                     state = TransmitResultState::REQUEST_TRANSFER;
                 break;
-            
+
             case TransmitResultState::SEND_HEADER:
                 transmit_success = obc_messager.transmitHeader();
                 if (!transmit_success)
@@ -226,7 +238,7 @@ ObcBridgeState ObcBridge::handleTransmitResultState()
                 break;
 
             case TransmitResultState::WAIT_HEADER_ACK:
-                if (obc_messager.checkHeaderAck() == true)
+                if (obc_messager.checkMessage(PYLD_HEADER_ACK_ID) == true)
                     state = TransmitResultState::SEND_PACKET;
                 else if (readTime() > ack_timeout)
                     state = TransmitResultState::SEND_HEADER;
@@ -244,11 +256,11 @@ ObcBridgeState ObcBridge::handleTransmitResultState()
                 break;
 
             case TransmitResultState::WAIT_PACKET_ACK:
-                if (obc_messager.checkPacketAck() == true)
+                if (obc_messager.checkMessage(PYLD_PACKET_ACK_ID) == true)
                 {
                     if (!obc_messager.isTransmitQueueEmpty())
                         state = TransmitResultState::SEND_PACKET;
-                    else 
+                    else
                         state = TransmitResultState::TRANSFER_COMPLETE;
                 }
                 else if (readTime() > ack_timeout)
@@ -259,7 +271,7 @@ ObcBridgeState ObcBridge::handleTransmitResultState()
                 break;
 
             case TransmitResultState::TRANSFER_COMPLETE:
-                transmit_success = obc_messager.transmitTransferComplete();
+                transmit_success = obc_messager.transmit(PYLD_TRANSFER_COMPLETE_ID);
                 if (!transmit_success)
                 {
                     std::cout << "[ERROR] Failed to transmit transfer complete signal to OBC." << std::endl;
@@ -267,14 +279,14 @@ ObcBridgeState ObcBridge::handleTransmitResultState()
 
                 startTimer();
                 state = TransmitResultState::TRANSFER_COMPLETE_ACK;
-                break; 
-            
+                break;
+
             case TransmitResultState::TRANSFER_COMPLETE_ACK:
-                if (obc_messager.checkTransferCompleteAck() == true)
+                if (obc_messager.checkMessage(PYLD_TRANSFER_COMPLETE_ACK_ID) == true)
                     return ObcBridgeState::IDLE;
                 else if (readTime() > ack_timeout)
                 {
-                    obc_messager.transmitTransferComplete();
+                    obc_messager.transmit(PYLD_TRANSFER_COMPLETE_ID);
                     startTimer();
                 }
                 break;

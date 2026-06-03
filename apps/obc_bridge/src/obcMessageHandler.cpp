@@ -5,11 +5,11 @@
 #include <sstream>
 #include <cstring>
 
-#define RESULT_TIMESTEPS 150 
+#define RESULT_TIMESTEPS 150
 
-ObcMessageHandler::ObcMessageHandler() 
-    : uart_interface(), last_message_read(), message_is_stored(false), transmit_queue(),
-      last_msg_buffer(), results_header(), receive_queue(), num_expected_msgs(0), msg_counter(0)
+ObcMessageHandler::ObcMessageHandler()
+    : uart_interface(), last_message_read(), receive_queue(), transmit_queue(),
+      last_msg_buffer(), results_header(), file_receive_buffer(), num_expected_msgs(0), msg_counter(0)
 {
     if (uart_interface.setupUart() == false)
     {
@@ -21,97 +21,144 @@ ObcMessageHandler::ObcMessageHandler()
 
 ObcMessageHandler::~ObcMessageHandler() {};
 
-// --- Helper message constructors and readers ---------------------------------
+// --- UART intake -------------------------------------------------------------
 
-bool ObcMessageHandler::transmitIdOnlyMessage(uint8_t id)
+// Drain all complete messages from the UART port into receive_queue.
+// Drops any message that fails CRC validation without sending an ack,
+// forcing the OBC to retransmit after its timeout.
+void ObcMessageHandler::drainUart()
 {
-    // Populate message with length one where the payload is the message ID
+    UART_msg_t msg;
+    while (uart_interface.receive(&msg, DEFAULT_UART_TIMEOUT_US))
+    {
+        if (UART_checkCRC(&msg))
+            receive_queue.push_back(msg);
+    }
+}
+
+// --- General message transmit and check --------------------------------------
+
+// Populate and transmit a message whose only payload byte is the message ID
+bool ObcMessageHandler::transmit(uint8_t id)
+{
     UART_msg_t msg;
     msg.sof        = UART_SOF;
     msg.id         = id;
     msg.length     = 1;
     msg.payload[0] = id;
-    // TODO: CRC automatically populated? 
-    
-    return uart_interface.transmit(&msg); 
+
+    return uart_interface.transmit(&msg);
 }
 
-// Check for any message from the UART port 
-bool ObcMessageHandler::getMessage()
+// Search the receive queue for a message with the given ID.
+// On match, stores the message in last_message_read and removes it from the queue.
+bool ObcMessageHandler::checkMessage(uint8_t id)
 {
-    UART_msg_t temp_msg;
-    bool msg_received = uart_interface.receive(&temp_msg, DEFAULT_UART_TIMEOUT_US);
-
-    // Only update the internal state if a message was received
-    if (msg_received == true)
+    for (auto it = receive_queue.begin(); it != receive_queue.end(); ++it)
     {
-        last_message_read = temp_msg;
-        message_is_stored = true; 
+        if (it->id == id)
+        {
+            last_message_read = *it;
+            receive_queue.erase(it);
+            return true;
+        }
     }
-
-    return msg_received; 
+    return false;
 }
 
-bool ObcMessageHandler::checkForMessage(uint8_t id)
+// --- File receive messages ---------------------------------------------------
+
+// Search the receive queue for a transfer header message and read the
+// expected packet count from its payload
+bool ObcMessageHandler::checkHeader()
 {
-    // First check if the message is already stored
-    if (message_is_stored && last_message_read.id == id)
+    if (!checkMessage(PYLD_TRANSFER_HEADER_ID))
+        return false;
+
+    // Read the number of payload messages to follow
+    memcpy(&num_expected_msgs, &last_message_read.payload[0], sizeof(uint16_t));
+    return true;
+}
+
+// Search the receive queue for the next file packet and validate its sequence index.
+// Appends to file_receive_buffer on success.
+// Returns true if the state machine should send a packet ack to the OBC.
+bool ObcMessageHandler::checkPacket()
+{
+    for (auto it = receive_queue.begin(); it != receive_queue.end(); ++it)
     {
-        message_is_stored = false; 
-        return true; 
+        if (it->id != PYLD_PACKET_ID)
+            continue;
+
+        // Extract the sequence index embedded in the first two payload bytes
+        uint16_t index;
+        memcpy(&index, &it->payload[0], sizeof(uint16_t));
+
+        if (index == msg_counter)
+        {
+            // Expected next packet - store and advance counter
+            file_receive_buffer.push_back(*it);
+            receive_queue.erase(it);
+            msg_counter++;
+            return true;
+        }
+        else if (index < msg_counter)
+        {
+            // OBC retransmit: this packet was already stored, our ack was lost.
+            // Remove and return true so the state machine acks again and OBC advances.
+            receive_queue.erase(it);
+            return true;
+        }
+        else
+        {
+            // Unexpected gap in sequence - do not consume or ack.
+            // OBC will retransmit the missing packet after its timeout.
+            std::cout << "[WARN] Unexpected packet index " << index
+                      << ", expected " << msg_counter << std::endl;
+            return false;
+        }
     }
-        
-
-    // Check if one is waiting at the UART port
-    if (getMessage() == true && last_message_read.id == id)
-    {
-        message_is_stored = false;
-        return true;
-    }    
-    
-    return false; 
+    return false;
 }
 
-// --- Experiment start / stop messaging ---------------------------------------
-
-bool ObcMessageHandler::transmitStartAck()
+// Returns true when all expected file packets have been received
+bool ObcMessageHandler::isReceiveComplete()
 {
-    return transmitIdOnlyMessage(PYLD_START_ACK_ID);
+    return msg_counter == num_expected_msgs;
 }
 
-bool ObcMessageHandler::transmitStopAck()
+// Reset the file receive buffer and packet counter ready for a new transfer
+void ObcMessageHandler::clearFileBuffer()
 {
-    return transmitIdOnlyMessage(PYLD_STOP_ACK_ID);
+    file_receive_buffer.clear();
+    msg_counter = 0;
 }
 
-bool ObcMessageHandler::checkStartMsg()
-{
-    return checkForMessage(PYLD_START_ID);
-}
+// --- Message deserialising ---------------------------------------------------
 
-bool ObcMessageHandler::checkStopMsg()
+// Deserialise the file receive buffer into a CSV file at the given path
+bool ObcMessageHandler::deserialise(std::string file_path)
 {
-    return checkForMessage(PYLD_STOP_ID);
+    // TODO: implement deserialisation of file_receive_buffer payloads into CSV
+    (void)file_path;
+    std::cout << "[INFO] deserialise not yet implemented." << std::endl;
+    return false;
 }
 
 // --- Result transfer messages ------------------------------------------------
 
-bool ObcMessageHandler::transmitTransferRequest()
-{
-    return transmitIdOnlyMessage(PYLD_REQUEST_TRANSFER_ID);
-}
-
+// Transmit the results transfer header
 bool ObcMessageHandler::transmitHeader()
-{   
+{
     return uart_interface.transmit(&results_header);
 }
 
+// Save and transmit the front of the transmit queue.
+// Always pops the front; retries are handled by transmitLastResultsPacket().
 bool ObcMessageHandler::transmitResultsPacket()
 {
-    // Save message to try again if need be
     last_msg_buffer = transmit_queue.front();
 
-    // Attempt to transmit the first message in the queue
     bool success = uart_interface.transmit(&last_msg_buffer);
 
     // Always pop, re-try is handled by transmitLastResultsPacket()
@@ -119,94 +166,16 @@ bool ObcMessageHandler::transmitResultsPacket()
     return success;
 }
 
+// Retransmit the last results packet
 bool ObcMessageHandler::transmitLastResultsPacket()
 {
-    // Attempt to transmit the last message again 
     return uart_interface.transmit(&last_msg_buffer);
 }
 
-bool ObcMessageHandler::transmitTransferComplete()
-{
-    return transmitIdOnlyMessage(PYLD_TRANSFER_COMPLETE_ID);
-}
-
+// Returns true when the transmit queue is empty
 bool ObcMessageHandler::isTransmitQueueEmpty()
 {
     return transmit_queue.empty();
-}
-
-bool ObcMessageHandler::checkTransferAck()
-{
-    return checkForMessage(PYLD_TRANSFER_ACK_ID);
-}
-
-bool ObcMessageHandler::checkHeaderAck()
-{
-    return checkForMessage(PYLD_HEADER_ACK_ID);
-}
-
-bool ObcMessageHandler::checkPacketAck()
-{
-    return checkForMessage(PYLD_PACKET_ACK_ID);
-}
-
-bool ObcMessageHandler::checkTransferCompleteAck()
-{
-    return checkForMessage(PYLD_TRANSFER_COMPLETE_ACK_ID);
-}
-
-// --- Experiment settings transfer messages -----------------------------------
-
-bool ObcMessageHandler::transmitTransferAck()
-{
-    return transmitIdOnlyMessage(PYLD_TRANSFER_ACK_ID);
-}
-
-bool ObcMessageHandler::transmitHeaderAck()
-{
-    return transmitIdOnlyMessage(PYLD_HEADER_ACK_ID);
-}
-
-bool ObcMessageHandler::transmitPacketAck()
-{
-    return transmitIdOnlyMessage(PYLD_PACKET_ACK_ID);
-}
-
-bool ObcMessageHandler::checkTransferRequest()
-{
-    return checkForMessage(PYLD_TRANSFER_ACK_ID);
-}
-
-// Reads the header sent by the OBC and sets the number of messages expected to receive
-bool ObcMessageHandler::checkHeader()
-{
-    // First check if the message is already stored
-    if (!(message_is_stored && last_message_read.id == PYLD_TRANSFER_HEADER_ID))
-        return false; 
-
-    // Check if one is waiting at the UART port
-    if (!(getMessage() == true && last_message_read.id == PYLD_TRANSFER_HEADER_ID))
-        return false;
-
-    // Read the number of payload messages to follow
-    memcpy(&num_expected_msgs, &last_message_read.payload[0], sizeof(uint16_t));
-    message_is_stored = false; 
-
-    return true;
-}
-
-
-
-// --- Debug messages ----------------------------------------------------------
-
-bool ObcMessageHandler::transmitDebugAck()
-{
-    return transmitIdOnlyMessage(PYLD_DEBUG_ACK_ID);
-}
-
-bool ObcMessageHandler::checkEnterDebugMsg()
-{
-    return checkForMessage(PYLD_ENTER_DEBUG_ID);
 }
 
 // --- Message serialising -----------------------------------------------------
@@ -227,35 +196,34 @@ bool ObcMessageHandler::serialiseResults(std::string file_path)
     int line_num = 0;       // line number of the csv
     std::stringstream ss;   // line of the csv as a string stream
     std::string raw_entry;  // entry of the csv line
-    
+
     // Prepare the first message struct
-    UART_msg_t msg = {}; 
+    UART_msg_t msg = {};
     uint16_t num_msgs = 0;
-    std::memcpy(&msg.payload[0], &num_msgs, sizeof(uint16_t)); // First two bytes are the index of the payload message
+    std::memcpy(&msg.payload[0], &num_msgs, sizeof(uint16_t)); // First two bytes are the packet index
     msg.length = sizeof(uint16_t);     // Update length as the message is filled
-    
+
     while (std::getline(file, line))
-    {   
+    {
         ss.clear();
         ss.str(line);
 
-        // Iterate through entries in the row 
+        // Iterate through entries in the row
         while (std::getline(ss, raw_entry, ','))
         {
             // Get the type of the next entry
-            size_t entry_size = line_num < 2 * RESULT_TIMESTEPS ? sizeof(float) : sizeof(int); 
+            size_t entry_size = line_num < 2 * RESULT_TIMESTEPS ? sizeof(float) : sizeof(int);
 
-            // If the last message is full add it to the queue and make a new message  
+            // If the last message is full add it to the queue and make a new message
             if (msg.length + entry_size > RX_BUFFER_BYTES)
             {
-                // Assume crc populated by uartInterface at time of tranmission
-                msg.sof = UART_SOF; 
+                msg.sof = UART_SOF;
                 msg.id = PYLD_PACKET_ID;
                 transmit_queue.push(msg);
                 num_msgs++;
 
-                // Make a new message ?
-                msg = {}; // zero initialise
+                // Zero initialise the new message and set its packet index
+                msg = {};
                 std::memcpy(&msg.payload[0], &num_msgs, sizeof(uint16_t));
                 msg.length = sizeof(uint16_t);
             }
@@ -268,7 +236,7 @@ bool ObcMessageHandler::serialiseResults(std::string file_path)
                 std::memcpy(&msg.payload[msg.length], &value, sizeof(float));
                 msg.length += sizeof(float);
             }
-            else 
+            else
             {
                 // The line is camera data, interpret as an integer
                 uint8_t value = static_cast<uint8_t>(std::stoi(raw_entry));
@@ -292,10 +260,10 @@ bool ObcMessageHandler::serialiseResults(std::string file_path)
 
     // Create a header message based on the number of packets added to the queue
     results_header = {};
-    results_header.sof = UART_SOF; 
+    results_header.sof = UART_SOF;
     results_header.id = PYLD_TRANSFER_HEADER_ID;
     memcpy(&results_header.payload[0], &num_msgs, sizeof(uint16_t));
-    results_header.length = sizeof(uint16_t); 
+    results_header.length = sizeof(uint16_t);
 
     return true;
 }
@@ -310,10 +278,9 @@ bool ObcMessageHandler::serialiseDebugResults(std::string file_path)
         return false;
     }
 
-    // TODO: read debug results file 
+    // TODO: read debug results file
 
     file.close();
 
-    return false; // TODO: update 
+    return false; // TODO: update
 }
-

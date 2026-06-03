@@ -1,6 +1,6 @@
 /*
-Constructs and decodes messages of the UART_msg_t format specified in 
-uartInterface.hpp. 
+Constructs and decodes messages of the UART_msg_t format specified in
+uartInterface.hpp.
 */
 
 #ifndef OBC_MESSAGE_HANDLER_H
@@ -9,11 +9,13 @@ uartInterface.hpp.
 #include "uartInterface.hpp"
 
 #include <cstdint>
+#include <deque>
 #include <queue>
+#include <vector>
 #include <string>
 
 // --- Message IDs -------------------------------------------------------------
-// Experiment start / stop 
+// Experiment start / stop
 #define PYLD_START_ID       0xA0
 #define PYLD_START_ACK_ID   0xA1
 #define PYLD_STOP_ID        0xA2
@@ -37,81 +39,76 @@ uartInterface.hpp.
 
 class ObcMessageHandler
 {
-    private: 
+    private:
         // For reading and writing messages to the UART port
         UartInterface uart_interface;
 
-        // Received single messages
+        // Last message matched by checkMessage(), available for payload reading (e.g. checkHeader)
         UART_msg_t last_message_read;
-        bool message_is_stored;
-        
+
+        // Incoming message queue - populated by drainUart(), consumed by checkMessage() and checkPacket()
+        std::deque<UART_msg_t> receive_queue;
+
         // Messages to transmit - populated by serialiseResults()
         std::queue<UART_msg_t> transmit_queue;
-        UART_msg_t last_msg_buffer; // saves the last message sent in case it needs to be resent 
+        UART_msg_t last_msg_buffer; // saves the last message sent in case it needs to be resent
         UART_msg_t results_header;  // tells the OBC how many payload packets to expect
 
-        // Messages received from the OBC specifying an experiment settings file
-        std::queue<UART_msg_t> receive_queue;
-        uint16_t num_expected_msgs;
-        uint16_t msg_counter; 
+        // File receive buffer - populated by checkPacket(), consumed by deserialise()
+        std::vector<UART_msg_t> file_receive_buffer;
+        uint16_t num_expected_msgs; // set from the transfer header
+        uint16_t msg_counter;       // number of file packets received so far
 
-        // Formats and transmits UART messages with a single payload byte equal
-        // to the message ID. 
-        bool transmitIdOnlyMessage(uint8_t id);
-        
-        // Check for a message sent over UART and store in last_message_read.
-        // Flag when a message has been received in last_message_received.
-        // Overwrites any message already stored in last_message_read. 
-        bool getMessage();
-
-        // Checks if a message with the given id is stored in last_message_read 
-        // or if it can be read from the UART terminal 
-        bool checkForMessage(uint8_t id);
-
-    public: 
+    public:
         ObcMessageHandler();
         ~ObcMessageHandler();
 
-        // Experiment start / stop messages
-        bool transmitStartAck();
-        bool transmitStopAck();
-        bool checkStartMsg();
-        bool checkStopMsg();
+        // Drain all available UART messages into the receive queue, dropping bad-CRC messages.
+        // Must be called once per state machine cycle before any checkMessage or checkPacket calls.
+        void drainUart();
 
-        // Messages for Payload -> OBC comms
-        bool transmitTransferRequest();
-        bool transmitHeader();
-        bool transmitResultsPacket(); // for transferring each message of the transmit queue
-        bool transmitLastResultsPacket(); // for re-trying the last message 
-        bool transmitTransferComplete();
-        bool checkTransferAck();
-        bool checkHeaderAck();
-        bool checkPacketAck();
-        bool checkTransferCompleteAck();
+        // Transmit an ID-only message with the given message ID
+        bool transmit(uint8_t id);
 
-        // Messages for OBC -> Payload comms
-        bool transmitTransferAck();
-        bool transmitHeaderAck();
-        bool transmitPacketAck();
-        bool checkTransferRequest();
+        // Check for a message with the given ID in the receive queue.
+        // Populates last_message_read on match.
+        bool checkMessage(uint8_t id);
+
+        // Reads the header sent by the OBC and sets the number of messages expected to receive
         bool checkHeader();
-        bool checkPacket();
-        bool checkTransferComplete();
 
-        // Debug mode messages
-        bool transmitDebugAck();
-        bool checkEnterDebugMsg();
+        // Check for the next expected file packet, validate its sequence index,
+        // and append to the file receive buffer on success
+        bool checkPacket();
+
+        // Returns true when all expected file packets have been received
+        bool isReceiveComplete();
+
+        // Reset the file receive buffer and packet counter between transfers
+        void clearFileBuffer();
+
+        // Deserialise the received file packets into a CSV at the given path
+        bool deserialise(std::string file_path);
+
+        // Transmit the results transfer header
+        bool transmitHeader();
+
+        // Transmit the next results packet from the transmit queue
+        bool transmitResultsPacket();
+
+        // Retransmit the last results packet
+        bool transmitLastResultsPacket();
+
+        // Returns true when the transmit queue is empty
+        bool isTransmitQueueEmpty();
 
         // Reads the csv results file generated by an experiment run and populates
         // the transmit message queue
         bool serialiseResults(std::string file_path);
 
-        // Reads the jpeg file generated in the debug state and populates the 
+        // Reads the jpeg file generated in the debug state and populates the
         // transmit message queue
         bool serialiseDebugResults(std::string file_path);
-
-        // Returns whether the transmit queue is empty
-        bool isTransmitQueueEmpty();
 };
 
-#endif 
+#endif
