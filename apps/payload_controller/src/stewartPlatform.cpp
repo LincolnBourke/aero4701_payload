@@ -41,7 +41,7 @@ StewartPlatform::StewartPlatform()
     servos{ServoMotor()},
     upper_servo_limits{M_PI / 2, M_PI / 2, M_PI / 2, M_PI / 2, M_PI / 2, M_PI / 2},
     lower_servo_limits{-M_PI / 4, -M_PI / 4, -M_PI / 4, -M_PI / 4, -M_PI / 4, -M_PI / 4},
-    calibration_offsets{0}
+    calibration_offsets{0, 0, 0, 0, 0, 0} 
 {
     // Calculate anchor point positions as vectors 
     for (int i = 0; i < NUM_SERVOS; i += 2)
@@ -504,17 +504,26 @@ void StewartPlatform::publishServoTargets()
     }
 
     // Print the channel and each servo angle being published
-    // std::cout << "[INFO] Publishing to SERVO_TARGETS:";
-    // for (int i = 0; i < NUM_SERVOS; i++)
-    // {
-    //     std::cout << " s" << i << "=" << msg.angles[i];
-    // }
-    // std::cout << std::endl;
+    std::cout << "[INFO] Publishing to SERVO_TARGETS:";
+    for (int i = 0; i < NUM_SERVOS; i++)
+    {
+        std::cout << " s" << i << "=" << msg.angles[i];
+    }
+    std::cout << std::endl;
 
     lcm.publish("SERVO_TARGETS", &msg);
 }
 
 void StewartPlatform::setCalibrationOffsets(const std::array<float, NUM_SERVOS>& offsets)
 {
+    std::cout << "[INFO] Setting offsets: [ "
+              << offsets[0] << ", " 
+              << offsets[1] << ", " 
+              << offsets[2] << ", " 
+              << offsets[3] << ", " 
+              << offsets[4] << ", " 
+              << offsets[5] << " ]" 
+              << std::endl << std::flush; 
+
     calibration_offsets = offsets;
 }
