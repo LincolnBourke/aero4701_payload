@@ -192,7 +192,8 @@ bool UartInterface::transmit(UART_msg_t* msg)
     data[2] = msg->length;
     memcpy(&data[RX_HEADER_BYTES], msg->payload, msg->length);
     msg->crc = UART_crc16_ccitt(data, msg->length + RX_HEADER_BYTES);
-    uint8_t crc_offset = RX_HEADER_BYTES + msg->length;
+    // uint8_t overflows for full-length packets (3 + 254 = 257 > 255), corrupting data[1] and data[2]
+    uint16_t crc_offset = RX_HEADER_BYTES + msg->length;
     data[crc_offset]     = msg->crc & 0xFF;
     data[crc_offset + 1] = msg->crc >> 8;
 
@@ -206,7 +207,7 @@ bool UartInterface::transmit(UART_msg_t* msg)
     }
 
     std::cout << "[INFO] Message transmitted over UART." << std::endl;
-    return true; 
+    return true;
 }
 
 bool UART_checkCRC(UART_msg_t* msg)

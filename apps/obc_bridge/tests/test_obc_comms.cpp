@@ -25,8 +25,20 @@ class ObcBridgeTest : public ObcBridge
         {
             std::cout << "[TEST] Starting round-loop test." << std::endl;
 
-            // Phase 1: receive experiment settings from OBC
-            std::cout << "[TEST] Phase 1: waiting to receive settings from OBC..." << std::endl;
+            // Phase 1: receive experiment settings from OBC.
+            // Replicate the handleIdleState() handshake for REQUEST_TRANSFER before
+            // entering handleReceiveSettingsState(), which starts at WAIT_HEADER.
+            std::cout << "[TEST] Phase 1: waiting for transfer request from OBC..." << std::endl;
+            while (true)
+            {
+                obc_messager.drainUart();
+                if (obc_messager.checkMessage(PYLD_REQUEST_TRANSFER_ID))
+                {
+                    obc_messager.transmit(PYLD_TRANSFER_ACK_ID);
+                    break;
+                }
+            }
+            std::cout << "[TEST] Transfer request received, entering receive settings state..." << std::endl;
             handleReceiveSettingsState();
 
             // Wait before sending results
