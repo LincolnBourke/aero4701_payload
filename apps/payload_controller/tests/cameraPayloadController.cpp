@@ -21,7 +21,7 @@ static const char* CH_CAM_TO_CONT = "CAM_PAYLOAD";   // camera --> controller
 
 // Timeouts for waiting for camera to respond
 static const int CAM_WAIT_TIMEOUT_CALIB_MS  = 60000;  // 1 min for calibration - need this to wait enough time for camera to calibrate (attempts 3 times) 
-static const int CAM_WAIT_TIMEOUT_DEFAULT_MS = 10000;  // 10s timeout
+static const int CAM_WAIT_TIMEOUT_DEFAULT_MS = 30000;  // 30s timeout
 static const int CAM_WAIT_TIMEOUT_SAVE_MS = 40000;  // 30s for processing + 10s buffer - need extra time to process results and save pose estimates
 
 // Automatically enters debug mode, no flag set - could be a comms from OBC?
@@ -166,6 +166,8 @@ state_t PayloadController::handleCalibrateCameraState()
 
 state_t PayloadController::handleDeployState()
 {
+    std::cout << "[DEBUG] Entered DEPLOY" << std::endl;
+    
     // bool platform_deployed;
     // int command_id;
 
@@ -195,12 +197,17 @@ state_t PayloadController::handleDeployState()
     // Check if the platform is fully deployed 
     if (platform_deployed == true)
     {
+        // Give camera python script a second to catch up
+        std::cout << "[INFO] Publish RUNNING to camera" << std::endl;
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        
         // Publish deploy to camera 
         publishCameraCommand(DEPLOY, DEBUG_MODE);
 
         // Wait for camera to report complete
         if (!waitForCamStatus(CAM_WAIT_TIMEOUT_DEFAULT_MS))
         {
+            std::cout << "[DEBUG] Timeout waiting for camera." << std::endl;
             std::cout << "[INFO] Payload controller state set to TERMINATE_RUN." << std::endl;
             return TERMINATE_RUN;
         }
@@ -361,9 +368,13 @@ state_t PayloadController::handleTerminateRunState()
         return ERROR;
     }
 
-    // Automatically move back to IDLE
-    std::cout << "[INFO] Payload controller state set to IDLE." << std::endl;
-    return IDLE;
+    //~ // Automatically move back to IDLE
+    //~ std::cout << "[INFO] Payload controller state set to IDLE." << std::endl;
+    //~ return IDLE;
+    
+    // DUMMY: To make it run just onces on startup when in this while loop setup, exit when finished
+    std::cout << "[INFO] Experiment complete. Shutting down." << std::endl;
+    exit(0);
 }
 
 state_t PayloadController::handleErrorState()
@@ -378,9 +389,13 @@ state_t PayloadController::handleErrorState()
     // // Let the OBC bridge know the experiment failed
     // publishRunResult(Commands::RunResult::RUN_FAIL);
 
-    // Automatically move back to IDLE
-    std::cout << "[INFO] Payload controller state set to IDLE." << std::endl;
-    return IDLE;
+    //~ // Automatically move back to IDLE
+    //~ std::cout << "[INFO] Payload controller state set to IDLE." << std::endl;
+    //~ return IDLE;
+    
+    // DUMMY: To make it run just onces on startup when in this while loop setup, exit when finished
+    std::cout << "[INFO] Experiment failed. Shutting down." << std::endl;
+    exit(1);
 }
 
 

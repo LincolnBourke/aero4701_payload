@@ -299,9 +299,15 @@ def open_picam(params, picam2_, debug_mode=False, output_dir="outputs"):
     try:
         picam2_ = Picamera2()
 
+        # ~ config = picam2_.create_video_configuration(
+            # ~ main={"format": "BGR888", "size": (params["width"], params["height"])},
+            # ~ raw={"size": picam2_.sensor_resolution},
+            # ~ controls={"FrameDurationLimits": (frame_us, frame_us)}
+        # ~ )
+        
         config = picam2_.create_video_configuration(
             main={"format": "BGR888", "size": (params["width"], params["height"])},
-            raw={"size": picam2_.sensor_resolution},
+            raw={"size": (4608, 2592)},   # full sensor, matches widget mode
             controls={"FrameDurationLimits": (frame_us, frame_us)}
         )
         picam2_.configure(config)
@@ -309,6 +315,12 @@ def open_picam(params, picam2_, debug_mode=False, output_dir="outputs"):
 
         # Let auto algorithms settle before focusing
         time.sleep(params["warmup"])
+        
+        # Log the sensor mode being used
+        camera_config = picam2_.camera_configuration()
+        print(f"[open_picam] [INFO] Raw stream config: {camera_config.get('raw', 'N/A')}")
+        print(f"[open_picam] [INFO] Main stream config: {camera_config.get('main', 'N/A')}")
+        
 
         # Try autofocus once, then lock the focus position
         try:
@@ -482,11 +494,17 @@ def open_picam_for_exp(params, picam2_, saved_cam_settings):
     frame_us = int(1_000_000 / params["fps"])
     try:
         picam2_ = Picamera2()
+        # ~ config = picam2_.create_video_configuration(
+            # ~ main={"format": "BGR888", "size": (params["width"], params["height"])},
+            # ~ raw={"size": picam2_.sensor_resolution},
+            # ~ controls={"FrameDurationLimits": (frame_us, frame_us)}
+        # ~ )
         config = picam2_.create_video_configuration(
             main={"format": "BGR888", "size": (params["width"], params["height"])},
-            raw={"size": picam2_.sensor_resolution},
+            raw={"size": (4608, 2592)},   # full sensor, matches widget mode
             controls={"FrameDurationLimits": (frame_us, frame_us)}
         )
+        
         picam2_.configure(config)
         picam2_.start()
         time.sleep(params["warmup"])
