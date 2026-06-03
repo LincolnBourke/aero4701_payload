@@ -346,7 +346,7 @@ bool PayloadController::readRawPoses(std::vector<PlatformPose>& raw_poses)
                 std::getline(ss, pitch, ',') &&
                 std::getline(ss, yaw))
             {
-                // Convert euler angles in degrees to a quaternion
+                // Attitude values in the trajectory file are in degrees; convert to radians for Eigen
                 Eigen::AngleAxisf roll_angle(std::stof(roll) * M_PI / 180,   Eigen::Vector3f::UnitX());
                 Eigen::AngleAxisf pitch_angle(std::stof(pitch) * M_PI / 180, Eigen::Vector3f::UnitY());
                 Eigen::AngleAxisf yaw_angle(std::stof(yaw) * M_PI / 180,     Eigen::Vector3f::UnitZ());

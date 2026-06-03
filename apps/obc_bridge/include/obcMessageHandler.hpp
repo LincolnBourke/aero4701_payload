@@ -87,8 +87,10 @@ class ObcMessageHandler
         // Reset the file receive buffer and packet counter between transfers
         void clearFileBuffer();
 
-        // Deserialise the received file packets into a CSV at the given path
-        bool deserialise(std::string file_path);
+        // Deserialise the received file packets into:
+        //   trajectory_path: 150-row CSV of p_x,p_y,p_z,roll,pitch,yaw (angles in degrees)
+        //   settings_path:   scalar settings CSV (frame_rate, threshold, exposure, satellite attitude)
+        bool deserialise(std::string trajectory_path, std::string settings_path);
 
         // Transmit the results transfer header
         bool transmitHeader();

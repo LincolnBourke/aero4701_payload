@@ -8,6 +8,8 @@
 #define WAIT_ACK_TIMEOUT 1000 // ms
 #define RESULTS_FILEPATH ""
 #define DEBUG_RESULTS_FILEPATH ""
+#define TRAJECTORY_SETTINGS_FILEPATH "data/trajectory_settings.csv"
+#define SCALAR_SETTINGS_FILEPATH "data/scalar_settings.csv"
 
 ObcBridge::ObcBridge()
     : lcm(), lcm_handler(), obc_messager()
@@ -91,12 +93,9 @@ ObcBridgeState ObcBridge::handleIdleState()
 ObcBridgeState ObcBridge::handleReceiveSettingsState()
 {
     ReceiveSettingsState state = ReceiveSettingsState::WAIT_HEADER;
-    float ack_timeout = ACK_TIMEOUT;
 
     // Reset file receive buffer from any prior transfer attempt
     obc_messager.clearFileBuffer();
-
-    startTimer();
 
     while (true)
     {
@@ -109,11 +108,8 @@ ObcBridgeState ObcBridge::handleReceiveSettingsState()
                 if (obc_messager.checkHeader() == true)
                 {
                     obc_messager.transmit(PYLD_HEADER_ACK_ID);
-                    startTimer();
                     state = ReceiveSettingsState::WAIT_PACKET;
                 }
-                else if (readTime() > ack_timeout)
-                    startTimer();
                 break;
 
             case ReceiveSettingsState::WAIT_PACKET:
@@ -121,30 +117,23 @@ ObcBridgeState ObcBridge::handleReceiveSettingsState()
                 {
                     obc_messager.transmit(PYLD_PACKET_ACK_ID);
                     if (!obc_messager.isReceiveComplete())
-                    {
-                        startTimer();
                         state = ReceiveSettingsState::WAIT_PACKET;
-                    }
                     else
-                    {
-                        startTimer();
                         state = ReceiveSettingsState::WAIT_TRANSFER_COMPLETE;
-                    }
-                }
-                else if (readTime() > ack_timeout)
-                {
-                    startTimer();
-                    state = ReceiveSettingsState::WAIT_HEADER;
                 }
                 break;
 
             case ReceiveSettingsState::WAIT_TRANSFER_COMPLETE:
                 if (obc_messager.checkMessage(PYLD_TRANSFER_COMPLETE_ID) == true)
-                    return ObcBridgeState::IDLE;
-                else if (readTime() > ack_timeout)
                 {
-                    startTimer();
-                    state = ReceiveSettingsState::WAIT_HEADER;
+                    // Acknowledge the transfer complete signal before processing
+                    obc_messager.transmit(PYLD_TRANSFER_COMPLETE_ACK_ID);
+
+                    // Deserialise received packets into trajectory and scalar settings files
+                    if (!obc_messager.deserialise(TRAJECTORY_SETTINGS_FILEPATH, SCALAR_SETTINGS_FILEPATH))
+                        std::cout << "[ERROR] Failed to deserialise received settings file." << std::endl;
+
+                    return ObcBridgeState::IDLE;
                 }
                 break;
         }

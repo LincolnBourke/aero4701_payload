@@ -136,13 +136,108 @@ void ObcMessageHandler::clearFileBuffer()
 
 // --- Message deserialising ---------------------------------------------------
 
-// Deserialise the file receive buffer into a CSV file at the given path
-bool ObcMessageHandler::deserialise(std::string file_path)
+// Deserialise the file receive buffer into a trajectory CSV and a scalar settings CSV.
+// Binary schema (in order): frame_rate, threshold, exposure, RESULT_TIMESTEPS x position[3],
+// RESULT_TIMESTEPS x attitude[3] (degrees), satellite_attitude[3] (degrees).
+bool ObcMessageHandler::deserialise(std::string trajectory_path, std::string settings_path)
 {
-    // TODO: implement deserialisation of file_receive_buffer payloads into CSV
-    (void)file_path;
-    std::cout << "[INFO] deserialise not yet implemented." << std::endl;
-    return false;
+    // Flatten all packet payloads into a single byte stream,
+    // skipping the 2-byte packet index prefix at the start of each payload
+    std::vector<uint8_t> stream;
+    for (const auto& pkt : file_receive_buffer)
+    {
+        for (int i = sizeof(uint16_t); i < pkt.length; i++)
+            stream.push_back(pkt.payload[i]);
+    }
+
+    // Lambda to read one float from the stream at the current offset
+    size_t offset = 0;
+    auto read_float = [&](float& out) -> bool
+    {
+        if (offset + sizeof(float) > stream.size())
+            return false;
+        memcpy(&out, &stream[offset], sizeof(float));
+        offset += sizeof(float);
+        return true;
+    };
+
+    // Parse scalar settings
+    float frame_rate, threshold, exposure;
+    if (!read_float(frame_rate) || !read_float(threshold) || !read_float(exposure))
+    {
+        std::cout << "[ERROR] deserialise: stream too short for scalar settings." << std::endl;
+        return false;
+    }
+
+    // Parse RESULT_TIMESTEPS platform positions and attitudes (separate blocks in the stream)
+    float positions[RESULT_TIMESTEPS][3];
+    float attitudes[RESULT_TIMESTEPS][3];
+
+    for (int i = 0; i < RESULT_TIMESTEPS; i++)
+    {
+        for (int j = 0; j < 3; j++)
+        {
+            if (!read_float(positions[i][j]))
+            {
+                std::cout << "[ERROR] deserialise: stream too short for position data." << std::endl;
+                return false;
+            }
+        }
+    }
+
+    for (int i = 0; i < RESULT_TIMESTEPS; i++)
+    {
+        for (int j = 0; j < 3; j++)
+        {
+            if (!read_float(attitudes[i][j]))
+            {
+                std::cout << "[ERROR] deserialise: stream too short for attitude data." << std::endl;
+                return false;
+            }
+        }
+    }
+
+    // Parse satellite attitude
+    float sat_attitude[3];
+    for (int j = 0; j < 3; j++)
+    {
+        if (!read_float(sat_attitude[j]))
+        {
+            std::cout << "[ERROR] deserialise: stream too short for satellite attitude." << std::endl;
+            return false;
+        }
+    }
+
+    // Write trajectory CSV: zip position[i] and attitude[i] onto each row
+    std::ofstream traj_file(trajectory_path);
+    if (!traj_file.is_open())
+    {
+        std::cout << "[ERROR] deserialise: could not open trajectory file for writing." << std::endl;
+        return false;
+    }
+
+    for (int i = 0; i < RESULT_TIMESTEPS; i++)
+    {
+        traj_file << positions[i][0] << "," << positions[i][1] << "," << positions[i][2] << ","
+                  << attitudes[i][0] << "," << attitudes[i][1] << "," << attitudes[i][2] << "\n";
+    }
+    traj_file.close();
+
+    // Write scalar settings CSV: frame_rate, threshold, exposure, satellite attitude
+    std::ofstream settings_file(settings_path);
+    if (!settings_file.is_open())
+    {
+        std::cout << "[ERROR] deserialise: could not open settings file for writing." << std::endl;
+        return false;
+    }
+
+    settings_file << frame_rate << "\n"
+                  << threshold  << "\n"
+                  << exposure   << "\n"
+                  << sat_attitude[0] << "," << sat_attitude[1] << "," << sat_attitude[2] << "\n";
+    settings_file.close();
+
+    return true;
 }
 
 // --- Result transfer messages ------------------------------------------------
