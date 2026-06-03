@@ -64,17 +64,20 @@ ObcBridgeState ObcBridge::handleIdleState()
     // Transition state depending on OBC message sent over UART
     if (obc_messager.checkStartMsg())
     {
+        // Requested to start payload experiment
         obc_messager.transmitStartAck();
         return ObcBridgeState::DO_EXPERIMENT;
     }
     else if (obc_messager.checkTransferRequest())
     {
+        // Request from OBC to transfer a data file
         // Assume transfer requests are for the experiment settings file
         obc_messager.transmitTransferAck();
         return ObcBridgeState::RECEIVE_SETTINGS;
     }
     else if (obc_messager.checkEnterDebugMsg())
     {
+        // Request from OBC to enter debug mode
         obc_messager.transmitDebugAck();
         return ObcBridgeState::DEBUG;
     }

@@ -41,7 +41,7 @@ class ObcMessageHandler
         // For reading and writing messages to the UART port
         UartInterface uart_interface;
 
-        // Received messages
+        // Received single messages
         UART_msg_t last_message_read;
         bool message_is_stored;
         
@@ -49,6 +49,11 @@ class ObcMessageHandler
         std::queue<UART_msg_t> transmit_queue;
         UART_msg_t last_msg_buffer; // saves the last message sent in case it needs to be resent 
         UART_msg_t results_header;  // tells the OBC how many payload packets to expect
+
+        // Messages received from the OBC specifying an experiment settings file
+        std::queue<UART_msg_t> receive_queue;
+        uint16_t num_expected_msgs;
+        uint16_t msg_counter; 
 
         // Formats and transmits UART messages with a single payload byte equal
         // to the message ID. 

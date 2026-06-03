@@ -9,7 +9,7 @@
 
 ObcMessageHandler::ObcMessageHandler() 
     : uart_interface(), last_message_read(), message_is_stored(false), transmit_queue(),
-      last_msg_buffer(), results_header()
+      last_msg_buffer(), results_header(), receive_queue(), num_expected_msgs(0), msg_counter(0)
 {
     if (uart_interface.setupUart() == false)
     {
@@ -56,12 +56,19 @@ bool ObcMessageHandler::checkForMessage(uint8_t id)
 {
     // First check if the message is already stored
     if (message_is_stored && last_message_read.id == id)
+    {
+        message_is_stored = false; 
         return true; 
+    }
+        
 
     // Check if one is waiting at the UART port
     if (getMessage() == true && last_message_read.id == id)
+    {
+        message_is_stored = false;
         return true;
-
+    }    
+    
     return false; 
 }
 
@@ -168,6 +175,24 @@ bool ObcMessageHandler::transmitPacketAck()
 bool ObcMessageHandler::checkTransferRequest()
 {
     return checkForMessage(PYLD_TRANSFER_ACK_ID);
+}
+
+// Reads the header sent by the OBC and sets the number of messages expected to receive
+bool ObcMessageHandler::checkHeader()
+{
+    // First check if the message is already stored
+    if (!(message_is_stored && last_message_read.id == PYLD_TRANSFER_HEADER_ID))
+        return false; 
+
+    // Check if one is waiting at the UART port
+    if (!(getMessage() == true && last_message_read.id == PYLD_TRANSFER_HEADER_ID))
+        return false;
+
+    // Read the number of payload messages to follow
+    memcpy(&num_expected_msgs, &last_message_read.payload[0], sizeof(uint16_t));
+    message_is_stored = false; 
+
+    return true;
 }
 
 
