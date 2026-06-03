@@ -54,18 +54,22 @@ enum class TransmitErrorState
 
 class ObcBridge
 {
-    private: 
+    private:
         // For communication between nodes on the payload computer
         lcm::LCM lcm;
         ObcBridgeLcmHandler lcm_handler;
 
+        // LCM message publishers
+        void publishRunCommand(int8_t command_id);
+
+    protected:
         // For communication with the OBC
         ObcMessageHandler obc_messager;
 
-        // For timing acknowledgement wait timeouts 
+        // For timing acknowledgement wait timeouts
         std::chrono::time_point<std::chrono::steady_clock> timer_start;
 
-        // readTime returns the time in ms since the last startTimer() call 
+        // readTime returns the time in ms since the last startTimer() call
         void startTimer();
         float readTime();
 
@@ -77,15 +81,6 @@ class ObcBridge
         ObcBridgeState handleTransmitErrorState();
         ObcBridgeState handleDebugState();
         ObcBridgeState handleTransmitDebugResultsState();
-
-        // State handlers for the transmit results state machine
-        // TODO
-
-        // State handlers for the transmit error state machine
-        // TODO
-
-        // LCM message publishers
-        void publishRunCommand(int8_t command_id);
 
     public: 
         // Setup UART port 

@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 """
-OBC simulator for testing UART communication on Ubuntu via socat virtual serial ports.
+OBC simulator — settings transmit side.
 
 Reads experiment_settings.csv, packs it into the binary wire format that
 ObcMessageHandler::deserialise() expects, then drives the file transfer
-protocol as the OBC would.
+protocol as the OBC would when sending settings to the payload.
 
 Setup:
   1. Open a terminal and run:
        socat -d -d pty,raw,echo=0 pty,raw,echo=0
      Note the two /dev/pts/N paths printed (e.g. /dev/pts/3 and /dev/pts/4).
 
-  2. Build the payload binary with UART_DEVICE set to the first path.
+  2. Build the payload binary with UART_DEVICE set to the first path:
+       cmake -DUART_DEVICE=/dev/pts/3 ..
+       make
 
   3. Run the payload binary, then run this script with the second path:
-       python3 apps/obc_bridge/tests/obc_sim.py /dev/pts/4
+       python3 apps/obc_bridge/tests/obc_transmit.py /dev/pts/4
 
 Dependencies:
   pip install pyserial
@@ -25,81 +27,14 @@ import csv
 import struct
 import serial
 
-# --- Message IDs (mirror obcMessageHandler.hpp) ------------------------------
-PYLD_REQUEST_TRANSFER_ID      = 0xA4
-PYLD_TRANSFER_ACK_ID          = 0xA5
-PYLD_TRANSFER_HEADER_ID       = 0xA6
-PYLD_HEADER_ACK_ID            = 0xA7
-PYLD_PACKET_ID                = 0xA8
-PYLD_PACKET_ACK_ID            = 0xA9
-PYLD_TRANSFER_COMPLETE_ID     = 0xAA
-PYLD_TRANSFER_COMPLETE_ACK_ID = 0xAB
-
-SOF       = 0x64
-BAUD_RATE = 115200
-
-# RX_BUFFER_BYTES is 254; each packet payload starts with a 2-byte index prefix,
-# leaving 252 bytes available for actual data per packet.
-MAX_DATA_PER_PACKET = 252
-
-# Must match RESULT_TIMESTEPS in obcMessageHandler.cpp
-RESULT_TIMESTEPS = 150
-
-
-# --- CRC and framing ---------------------------------------------------------
-
-def crc16_ccitt(data: bytes) -> int:
-    """CRC-16-CCITT matching UART_crc16_ccitt() in uartInterface.cpp."""
-    crc = 0xFFFF
-    for byte in data:
-        crc ^= byte << 8
-        for _ in range(8):
-            crc = (crc << 1) ^ 0x1021 if crc & 0x8000 else crc << 1
-    return crc & 0xFFFF
-
-
-def build_msg(msg_id: int, payload: bytes) -> bytes:
-    """Pack SOF | ID | LENGTH | PAYLOAD | CRC16 matching UartInterface::transmit()."""
-    header = bytes([SOF, msg_id, len(payload)])
-    crc = crc16_ccitt(header + payload)
-    return header + payload + struct.pack('<H', crc)
-
-
-def recv_msg(port: serial.Serial) -> tuple | None:
-    """
-    Block until a complete, valid UART_msg_t is received.
-    Returns (msg_id, payload) or None on timeout or CRC failure.
-    """
-    # Scan incoming bytes for SOF
-    while True:
-        b = port.read(1)
-        if not b:
-            print("[OBC] Timeout waiting for message SOF")
-            return None
-        if b[0] == SOF:
-            break
-
-    # Read ID and length
-    hdr = port.read(2)
-    if len(hdr) < 2:
-        return None
-    msg_id, length = hdr[0], hdr[1]
-
-    # Read payload and CRC
-    payload   = port.read(length)
-    crc_bytes = port.read(2)
-    if len(payload) < length or len(crc_bytes) < 2:
-        return None
-
-    # Validate CRC
-    crc_recv = struct.unpack('<H', crc_bytes)[0]
-    crc_calc = crc16_ccitt(bytes([SOF, msg_id, length]) + payload)
-    if crc_recv != crc_calc:
-        print(f"[OBC WARN] CRC mismatch on id=0x{msg_id:02X}")
-        return None
-
-    print(f"[OBC] Received id=0x{msg_id:02X} len={length}")
-    return msg_id, payload
+from uart_helpers import (
+    PYLD_REQUEST_TRANSFER_ID, PYLD_TRANSFER_ACK_ID,
+    PYLD_TRANSFER_HEADER_ID, PYLD_HEADER_ACK_ID,
+    PYLD_PACKET_ID, PYLD_PACKET_ACK_ID,
+    PYLD_TRANSFER_COMPLETE_ID, PYLD_TRANSFER_COMPLETE_ACK_ID,
+    BAUD_RATE, MAX_DATA_PER_PACKET, RESULT_TIMESTEPS,
+    build_msg, recv_msg,
+)
 
 
 # --- Settings packing --------------------------------------------------------
@@ -167,11 +102,11 @@ def make_packets(data: bytes) -> list:
 
 def send_settings(port: serial.Serial, packets: list):
     """
-    Drive the file transfer protocol as the OBC would, mirroring
-    handleReceiveSettingsState() on the payload side.
+    Drive the file transfer protocol as the OBC would when sending settings,
+    mirroring handleReceiveSettingsState() on the payload side.
     """
     num = len(packets)
-    print(f"[OBC] Starting transfer: {num} packets")
+    print(f"[OBC] Starting settings transfer: {num} packets")
 
     # Step 1: request transfer, wait for TRANSFER_ACK
     port.write(build_msg(PYLD_REQUEST_TRANSFER_ID, bytes([PYLD_REQUEST_TRANSFER_ID])))
@@ -195,7 +130,7 @@ def send_settings(port: serial.Serial, packets: list):
     result = recv_msg(port)
     assert result and result[0] == PYLD_TRANSFER_COMPLETE_ACK_ID, "Expected TRANSFER_COMPLETE_ACK"
 
-    print("[OBC] Transfer complete.")
+    print("[OBC] Settings transfer complete.")
 
 
 # --- Entry point -------------------------------------------------------------

@@ -6,7 +6,7 @@
 
 // Time to wait for an acknowledgement before repeating a message sent over UART
 #define WAIT_ACK_TIMEOUT 1000 // ms
-#define RESULTS_FILEPATH ""
+#define RESULTS_FILEPATH "data/test_obc_nominal/results.csv"
 #define DEBUG_RESULTS_FILEPATH ""
 #define TRAJECTORY_SETTINGS_FILEPATH "data/test_obc_nominal/trajectory_settings.csv"
 #define SCALAR_SETTINGS_FILEPATH "data/test_obc_nominal/scalar_settings.csv"
