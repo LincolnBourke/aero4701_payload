@@ -59,6 +59,10 @@ class StewartPlatform
         std::array<float, NUM_SERVOS> upper_servo_limits;
         std::array<float, NUM_SERVOS> lower_servo_limits;
 
+        // Per-servo calibration offsets (radians). Added to servo_targets before publishing.
+        // Set by setCalibrationOffsets() when the limit switches activate.
+        std::array<float, NUM_SERVOS> calibration_offsets;
+
         // Calculate the required servo angles to achieve the latest platform pose.
         // Implements the inverse kinematics of the Stewart platform. 
         bool computeServoTargets(bool print_errors);
@@ -90,8 +94,12 @@ class StewartPlatform
         // last target platform pose set with moveTo()
         const std::array<float, NUM_SERVOS>& getServoTargets() const;
 
-        // Returns the current pose of the platform  
-        const PlatformPose& getPlatformPose() const;        
+        // Returns the current pose of the platform
+        const PlatformPose& getPlatformPose() const;
+
+        // Set per-servo calibration offsets (radians). Called once after the
+        // limit switches confirm the physical servo angle at that point.
+        void setCalibrationOffsets(const std::array<float, NUM_SERVOS>& offsets);
 };
 
 

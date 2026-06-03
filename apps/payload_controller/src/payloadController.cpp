@@ -14,6 +14,10 @@
 #define CALIBRATION_START_Z 15 // mm
 #define CALIBRATION_END_Z 0 // mm
 
+// Angle of the servos when switches activated 
+    // Obtained from CAD 
+constexpr float PHYSICAL_ANGLE_AT_ACTIVATION = -41.58f * M_PI / 180.0f;
+
 PayloadController::PayloadController()
     : lcm(), lcm_handler(), error(), platform(), 
       trajectory_step(0), experiment_start_time()
@@ -184,8 +188,16 @@ state_t PayloadController::handleCalibrateServosState()
     // Set calibration offset for the Stewart platform
     if (switches_activated)
     {
-        // TODO 
-        // Need to record current command angle as -41.58 degs
+        // At switch activation, physical servo angle is known to be -41.58 deg.
+        // Offset = physical - commanded, applied in publishServoTargets().
+        const auto& commanded = platform.getServoTargets();
+        std::array<float, NUM_SERVOS> offsets;
+
+        for (int i = 0; i < NUM_SERVOS; i++)
+            offsets[i] = PHYSICAL_ANGLE_AT_ACTIVATION - commanded[i];
+
+        platform.setCalibrationOffsets(offsets); 
+        std::cout << "[INFO] Calibration offsets set." << std::endl;
     }
     else 
     {
