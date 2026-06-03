@@ -6,7 +6,8 @@
 
 // Time to wait for an acknowledgement before repeating a message sent over UART
 #define WAIT_ACK_TIMEOUT 1000 // ms
-#define RESULTS_FILEPATH ""
+#define RESULTS_FILEPATH "" 
+#define DEBUG_RESULTS_FILEPATH ""
 
 ObcBridge::ObcBridge()
     : lcm(), lcm_handler(), obc_messager()
@@ -262,6 +263,8 @@ ObcBridgeState ObcBridge::handleTransmitResultState()
                 }
 
                 return ObcBridgeState::IDLE;
+
+                // add ack for transfer complete
         }
     }
 

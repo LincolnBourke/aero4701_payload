@@ -144,6 +144,7 @@ bool ObcMessageHandler::checkPacketAck()
 }
 
 // --- Experiment settings transfer messages -----------------------------------
+
 bool ObcMessageHandler::transmitTransferAck()
 {
     return transmitIdOnlyMessage(PYLD_TRANSFER_ACK_ID);
@@ -157,6 +158,25 @@ bool ObcMessageHandler::transmitHeaderAck()
 bool ObcMessageHandler::transmitPacketAck()
 {
     return transmitIdOnlyMessage(PYLD_PACKET_ACK_ID);
+}
+
+bool ObcMessageHandler::checkTransferRequest()
+{
+    return checkForMessage(PYLD_TRANSFER_ACK_ID);
+}
+
+// bool ObcMessageHandler::
+
+// --- Debug messages ----------------------------------------------------------
+
+bool ObcMessageHandler::transmitDebugAck()
+{
+    return transmitIdOnlyMessage(PYLD_DEBUG_ACK_ID);
+}
+
+bool ObcMessageHandler::checkEnterDebugMsg()
+{
+    return checkForMessage(PYLD_ENTER_DEBUG_ID);
 }
 
 // --- Message serialising -----------------------------------------------------
@@ -220,10 +240,10 @@ bool ObcMessageHandler::serialiseResults(std::string file_path)
             }
             else 
             {
-                // The line is camera data, interpret as integer
-                int value = std::stoi(raw_entry);
-                std::memcpy(&msg.payload[msg.length], &value, sizeof(int));
-                msg.length += sizeof(int);
+                // The line is camera data, interpret as an integer
+                uint8_t value = static_cast<uint8_t>(std::stoi(raw_entry));
+                std::memcpy(&msg.payload[msg.length], &value, sizeof(uint8_t));
+                msg.length += sizeof(uint8_t);
             }
         }
 
@@ -249,3 +269,21 @@ bool ObcMessageHandler::serialiseResults(std::string file_path)
 
     return true;
 }
+
+bool ObcMessageHandler::serialiseDebugResults(std::string file_path)
+{
+    // Open the CSV file and verify it is accessible
+    std::ifstream file(file_path);
+    if (!file.is_open())
+    {
+        std::cout << "[ERROR] Could not open file when serialising results." << std::endl;
+        return false;
+    }
+
+    // TODO: read debug results file 
+
+    file.close();
+
+    return false; // TODO: update 
+}
+
