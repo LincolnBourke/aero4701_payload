@@ -10,16 +10,27 @@ from libcamera import controls
 from event_camera_emulation.emulator import EventCameraEmulator
 
 # Setup save directories
-def setup_directories():
-    output_dir = "outputs"
-    os.makedirs(output_dir, exist_ok=True)
-    calib_folder = "outputs/calibration"
-    os.makedirs(calib_folder, exist_ok=True)
-    baseline_folder = "outputs/baseline"
-    os.makedirs(baseline_folder, exist_ok=True)
-    baseline_pose_folder = "outputs/baseline_pose"
-    os.makedirs(baseline_pose_folder, exist_ok=True)
+# ~ def setup_directories():
+    # ~ output_dir = "outputs"
+    # ~ os.makedirs(output_dir, exist_ok=True)
+    # ~ calib_folder = "outputs/calibration"
+    # ~ os.makedirs(calib_folder, exist_ok=True)
+    # ~ baseline_folder = "outputs/baseline"
+    # ~ os.makedirs(baseline_folder, exist_ok=True)
+    # ~ baseline_pose_folder = "outputs/baseline_pose"
+    # ~ os.makedirs(baseline_pose_folder, exist_ok=True)
 
+    # ~ return output_dir, calib_folder, baseline_folder, baseline_pose_folder
+    
+def setup_directories(output_dir="outputs"):
+    os.makedirs(output_dir, exist_ok=True)
+    calib_folder = f"{output_dir}/calibration"
+    baseline_folder = f"{output_dir}/baseline"
+    baseline_pose_folder = f"{output_dir}/baseline_pose"
+    os.makedirs(calib_folder, exist_ok=True)
+    os.makedirs(baseline_folder, exist_ok=True)
+    os.makedirs(baseline_pose_folder, exist_ok=True)
+    
     return output_dir, calib_folder, baseline_folder, baseline_pose_folder
 
 # Define board and other parameters
@@ -140,8 +151,13 @@ def get_cboard_gt(L=0.025981, CHESSBOARD=(5, 3), SQUARE_SIZE=0.00225):
     return objpoints_3boards
 
 
-def detect_cboard_calib(images, ROIS, CHESSBOARD=(5, 3), SQUARE_SIZE=0.00225, save_debug_images=False):
-    debug_folder = "outputs/calibration_test"
+# ~ def detect_cboard_calib(images, ROIS, CHESSBOARD=(5, 3), SQUARE_SIZE=0.00225, save_debug_images=False):
+    # ~ debug_folder = "outputs/calibration_test"
+    # ~ if save_debug_images:
+        # ~ shutil.rmtree(debug_folder, ignore_errors=True)
+        # ~ os.makedirs(debug_folder, exist_ok=True)
+
+def detect_cboard_calib(images, ROIS, CHESSBOARD=(5, 3), SQUARE_SIZE=0.00225, save_debug_images=False, debug_folder="outputs/calibration_test"):
     if save_debug_images:
         shutil.rmtree(debug_folder, ignore_errors=True)
         os.makedirs(debug_folder, exist_ok=True)
@@ -275,7 +291,8 @@ def capture_frame(picam2_):
     
 
 # Open pi camera 3 and set focus. Save debug image if enabled.
-def open_picam(params, picam2_, debug_mode=False):
+# ~ def open_picam(params, picam2_, debug_mode=False):
+def open_picam(params, picam2_, debug_mode=False, output_dir="outputs"):
 
     frame_us = int(1_000_000 / params["fps"])
 
@@ -350,9 +367,16 @@ def open_picam(params, picam2_, debug_mode=False):
             previous_image = cv.cvtColor(previous_image, cv.COLOR_GRAY2BGR)
 
         # Save focused frame to outputs/ for debug mode
+        # ~ if debug_mode:
+            # ~ os.makedirs("outputs", exist_ok=True)
+            # ~ debug_path = "outputs/debug_mode_focus.jpeg"
+            # ~ cv.imwrite(debug_path, previous_image)
+            # ~ print(f"[open_picam] [DEBUG] Saved post-focus frame to: {debug_path}")
+
+        
         if debug_mode:
-            os.makedirs("outputs", exist_ok=True)
-            debug_path = "outputs/debug_mode_focus.jpeg"
+            os.makedirs(output_dir, exist_ok=True)
+            debug_path = f"{output_dir}/debug_mode_focus.jpeg"
             cv.imwrite(debug_path, previous_image)
             print(f"[open_picam] [DEBUG] Saved post-focus frame to: {debug_path}")
 
@@ -369,7 +393,7 @@ def open_picam(params, picam2_, debug_mode=False):
 
 
 # Save calibration video with pi camera 3
-def save_calib_video_picam(picam2_, display_widget = False, calib_time=1.0, calib_folder="outputs/calibration"):
+def save_calib_video_picam(picam2_, display_widget = False, calib_time=5.0, calib_folder="outputs/calibration"):
     # Capture calibration frames
     frames = []
     start_time = time.time()
@@ -513,15 +537,24 @@ import struct
 
 
 # Saves frames and histograms from experiment 
-def save_exp_video(picam2_, display_widget=False, save_debug_images=False, exp_time=20.0, WINDOW_SIZE=1):
+# ~ def save_exp_video(picam2_, display_widget=False, save_debug_images=False, exp_time=20.0, WINDOW_SIZE=1):
+def save_exp_video(picam2_, display_widget=False, save_debug_images=False, exp_time=30.0, WINDOW_SIZE=1, output_dir="outputs"):
+    
     print("Starting experiment")
     # Setup debug output folders
+    # ~ if save_debug_images:
+        # ~ event_frame_dir = "outputs/event_data/frames"
+        # ~ event_hist_dir = "outputs/event_data/histograms"
+        # ~ shutil.rmtree("outputs/event_data", ignore_errors=True)
+        # ~ os.makedirs(event_frame_dir, exist_ok=True)
+        # ~ os.makedirs(event_hist_dir, exist_ok=True)
+        
     if save_debug_images:
-        event_frame_dir = "outputs/event_data/frames"
-        event_hist_dir = "outputs/event_data/histograms"
-        shutil.rmtree("outputs/event_data", ignore_errors=True)
+        event_frame_dir = f"{output_dir}/event_data/frames"
+        event_hist_dir  = f"{output_dir}/event_data/histograms"
+        shutil.rmtree(f"{output_dir}/event_data", ignore_errors=True)
         os.makedirs(event_frame_dir, exist_ok=True)
-        os.makedirs(event_hist_dir, exist_ok=True)
+        os.makedirs(event_hist_dir,  exist_ok=True)
 
     # Initialise event camera emulator
     e_camera_emulator = EventCameraEmulator()
@@ -592,7 +625,6 @@ def save_exp_video(picam2_, display_widget=False, save_debug_images=False, exp_t
     if display_widget:
         try:
             while time.time() - start_time < exp_time:
-                # frame = picam2_.capture_array("main")
                 frame = capture_frame(picam2_)
                 if frame is None:
                     continue
@@ -615,7 +647,8 @@ def save_exp_video(picam2_, display_widget=False, save_debug_images=False, exp_t
             process_frame(frame)
 
     # Save baseline images for later pose estimation
-    baseline_folder = "outputs/baseline"
+    # ~ baseline_folder = "outputs/baseline"
+    baseline_folder = f"{output_dir}/baseline"
     shutil.rmtree(baseline_folder, ignore_errors=True)
     os.makedirs(baseline_folder, exist_ok=True)
 
@@ -627,10 +660,15 @@ def save_exp_video(picam2_, display_widget=False, save_debug_images=False, exp_t
     return hist_records
 
 
+# ~ def process_baseline_data(objpoints_3boards, mtx, dist, ROIS, CHESSBOARD=(5, 3),
+                           # ~ baseline_folder="outputs/baseline",
+                           # ~ pose_folder="outputs/baseline_pose",
+                           # ~ save_debug_images=False):
 def process_baseline_data(objpoints_3boards, mtx, dist, ROIS, CHESSBOARD=(5, 3),
                            baseline_folder="outputs/baseline",
                            pose_folder="outputs/baseline_pose",
-                           save_debug_images=False):
+                           save_debug_images=False,
+                           results_dir="outputs/experiment_results"):
     print("Processing baseline frames")
     images = sorted(glob.glob(os.path.join(baseline_folder, "*.jpeg")))
     print("Found images:", len(images))
@@ -638,8 +676,11 @@ def process_baseline_data(objpoints_3boards, mtx, dist, ROIS, CHESSBOARD=(5, 3),
     criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
     os.makedirs(pose_folder, exist_ok=True)
 
-    results_dir = "outputs/experiment_results"
-    os.makedirs(results_dir, exist_ok=True) # backup
+    # results_dir = "outputs/experiment_results"
+    # os.makedirs(results_dir, exist_ok=True) # backup
+    # results_file = open(os.path.join(results_dir, "experiment_results.bin"), "ab")
+    
+    os.makedirs(results_dir, exist_ok=True)
     results_file = open(os.path.join(results_dir, "experiment_results.bin"), "ab")
 
     for fname in images:
@@ -699,9 +740,11 @@ def process_baseline_data(objpoints_3boards, mtx, dist, ROIS, CHESSBOARD=(5, 3),
 
 
 # Save the experiment results
-def save_exp_results(hist_records):
+# def save_exp_results(hist_records):
+def save_exp_results(hist_records, results_dir="outputs/experiment_results"):
     # Setup output folders
-    results_dir = "outputs/experiment_results"
+    # results_dir = "outputs/experiment_results"
+    
     os.makedirs(results_dir, exist_ok=True) # backup
     
     # Write histogram records to binary file
@@ -712,49 +755,69 @@ def save_exp_results(hist_records):
     
     print("[save_exp_results] [INFO] Experiment results saved\n")
 
-# Delete experiment images, and debug images if produced
-def cleanup_images(cleanup_enabled = False):
-    if cleanup_enabled == True:
-        # Delete calibration images
-        for file_path in glob.glob(os.path.join("outputs/calibration", "*")):
+# Add output_dir param so cleanup targets the right boot folder
+def cleanup_images(cleanup_enabled=False, output_dir="outputs"):
+    if not cleanup_enabled:
+        return
+    dirs_to_clean = [
+        f"{output_dir}/calibration",
+        f"{output_dir}/calibration_test",
+        f"{output_dir}/baseline",
+        f"{output_dir}/baseline_pose",
+        f"{output_dir}/event_data/frames",
+        f"{output_dir}/event_data/histograms",
+    ]
+    for folder in dirs_to_clean:
+        for file_path in glob.glob(os.path.join(folder, "*")):
             try:
                 os.remove(file_path)
             except Exception as e:
                 print(f"[WARN] Failed to delete {file_path}: {e}")
+    print("Deleted saved images for this run.\n")
 
-        # Delete calibration test debug images
-        for file_path in glob.glob(os.path.join("outputs/calibration_test", "*")):
-            try:
-                os.remove(file_path)
-            except Exception as e:
-                print(f"[WARN] Failed to delete {file_path}: {e}")
+# ~ # Delete experiment images, and debug images if produced
+# ~ def cleanup_images(cleanup_enabled = False, output_dir="outputs"):
+    # ~ if cleanup_enabled == True:
+        # ~ # Delete calibration images
+        # ~ for file_path in glob.glob(os.path.join("outputs/calibration", "*")):
+            # ~ try:
+                # ~ os.remove(file_path)
+            # ~ except Exception as e:
+                # ~ print(f"[WARN] Failed to delete {file_path}: {e}")
 
-        # Delete experiment baseline images
-        for file_path in glob.glob(os.path.join("outputs/baseline", "*")):
-            try:
-                os.remove(file_path)
-            except Exception as e:
-                print(f"[WARN] Failed to delete {file_path}: {e}")
+        # ~ # Delete calibration test debug images
+        # ~ for file_path in glob.glob(os.path.join("outputs/calibration_test", "*")):
+            # ~ try:
+                # ~ os.remove(file_path)
+            # ~ except Exception as e:
+                # ~ print(f"[WARN] Failed to delete {file_path}: {e}")
 
-        # Delete baseline pose debug images
-        for file_path in glob.glob(os.path.join("outputs/baseline_pose", "*.png")):
-            try:
-                os.remove(file_path)
-            except Exception as e:
-                print(f"[WARN] Failed to delete {file_path}: {e}")
+        # ~ # Delete experiment baseline images
+        # ~ for file_path in glob.glob(os.path.join("outputs/baseline", "*")):
+            # ~ try:
+                # ~ os.remove(file_path)
+            # ~ except Exception as e:
+                # ~ print(f"[WARN] Failed to delete {file_path}: {e}")
+
+        # ~ # Delete baseline pose debug images
+        # ~ for file_path in glob.glob(os.path.join("outputs/baseline_pose", "*.png")):
+            # ~ try:
+                # ~ os.remove(file_path)
+            # ~ except Exception as e:
+                # ~ print(f"[WARN] Failed to delete {file_path}: {e}")
         
-        # Delete event data frames
-        for file_path in glob.glob(os.path.join("outputs/frames/", "*")):
-            try:
-                os.remove(file_path)
-            except Exception as e:
-                print(f"[WARN] Failed to delete {file_path}: {e}")
+        # ~ # Delete event data frames
+        # ~ for file_path in glob.glob(os.path.join("outputs/frames/", "*")):
+            # ~ try:
+                # ~ os.remove(file_path)
+            # ~ except Exception as e:
+                # ~ print(f"[WARN] Failed to delete {file_path}: {e}")
         
-        # Delete event data histograms
-        for file_path in glob.glob(os.path.join("outputs/histograms/", "*")):
-            try:
-                os.remove(file_path)
-            except Exception as e:
-                print(f"[WARN] Failed to delete {file_path}: {e}")
+        # ~ # Delete event data histograms
+        # ~ for file_path in glob.glob(os.path.join("outputs/histograms/", "*")):
+            # ~ try:
+                # ~ os.remove(file_path)
+            # ~ except Exception as e:
+                # ~ print(f"[WARN] Failed to delete {file_path}: {e}")
 
-        print("Deleted saved images for this run.\n")
+        # ~ print("Deleted saved images for this run.\n")

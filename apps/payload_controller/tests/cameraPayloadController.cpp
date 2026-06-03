@@ -270,7 +270,38 @@ state_t PayloadController::handleSaveResultsState()
     // Create a results file and save the servo angles across the trajectory
     // TODO
     // Suggested from Ollie - use this as base for code to save into experiment_results, then I will append to same file in camera python
-    std::string results_dir = "outputs/experiment_results";
+    //~ std::string results_dir = "outputs/experiment_results";
+    //~ std::filesystem::create_directories(results_dir);
+
+    //~ // Write one zero record to initialise the file before Python appends
+    //~ std::ofstream results_file(results_dir + "/experiment_results.bin", std::ios::binary);
+    //~ if (!results_file.is_open())
+    //~ {
+        //~ std::cout << "[ERROR] Failed to open results file." << std::endl;
+        //~ return ERROR;
+    //~ }
+    //~ float zeros[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    //~ results_file.write(reinterpret_cast<const char*>(zeros), sizeof(zeros));
+    //~ results_file.close();
+    
+    
+    // Read boot count to match the camera Python output directory
+    int boot_count = 0;
+    std::ifstream count_file("/home/slave2/Documents/service_test/boot_count.txt");
+    if (count_file.is_open())
+    {
+        count_file >> boot_count;
+        count_file.close();
+    }
+    else
+    {
+        std::cout << "[WARN] Could not read boot_count.txt, defaulting to 0" << std::endl;
+    }
+
+    // Build boot-specific results directory (zero-padded to 3 digits, matching Python)
+    char boot_dir[64];
+    std::snprintf(boot_dir, sizeof(boot_dir), "outputs/boot_%03d", boot_count);
+    std::string results_dir = std::string(boot_dir) + "/experiment_results";
     std::filesystem::create_directories(results_dir);
 
     // Write one zero record to initialise the file before Python appends
@@ -283,6 +314,7 @@ state_t PayloadController::handleSaveResultsState()
     float zeros[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
     results_file.write(reinterpret_cast<const char*>(zeros), sizeof(zeros));
     results_file.close();
+    
 
     // Need 1s buffer for camera python to be ready
     std::this_thread::sleep_for(std::chrono::seconds(1));

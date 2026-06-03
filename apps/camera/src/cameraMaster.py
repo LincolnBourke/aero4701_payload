@@ -5,31 +5,23 @@ import cv2 as cv
 import glob
 import cameraHelper as h
 import lcmHelper as lcm_h
+import os
 
 # TODO put helper functions into class definition?
 # TODO make header for class definition?
 
 ## PARAMETERS
 CAMERA_SETTINGS_PATH = "apps/camera/camera_settings/pi_camera_settings.txt"
+BOOT_COUNT_FILE      = "/home/slave2/Documents/service_test/boot_count.txt"
 
 ## FLAGS
 SHOW_CAMERA_FEED    = True   # Display live camera feed widget during capture
 SAVE_DEBUG_IMAGES   = True   # Save calibration_test, baseline_pose annotated images and event data
 DELETE_IMAGES       = False  # Delete all saved images (calibration + experiment) after each run
 
-# TODO check on integration
 ## PAYLOAD CONTROLLER STATE ENUM
 from enum import IntEnum
 
-# class PayloadState(IntEnum):
-#     IDLE          = 0
-#     SETUP         = 1
-#     CALIBRATE_CAM = 2
-#     DEPLOY        = 3
-#     RUNNING       = 4
-#     SAVE_RESULTS  = 5
-#     TERMINATE_RUN = 6
-#     ERROR         = 7
 class PayloadState(IntEnum):
     IDLE                 = 0
     READ_TRAJECTORY      = 1
@@ -53,6 +45,12 @@ class PayloadState(IntEnum):
 #     ERROR,              // Publishes an erroneous run result
 # } state_t;
 
+## Read boot count (read-only — the service script owns incrementing it)
+def get_boot_count(counter_file):
+    if os.path.exists(counter_file):
+        with open(counter_file, "r") as f:
+            return int(f.read().strip())
+    return 0
 
 ## CAMERA CLASS
 class Camera:
@@ -77,7 +75,7 @@ class Camera:
         self.ROIS                 = None
         # Output directories
         # TODO not really necessary but leave for now?
-        self.output_dir           = None
+        self.output_dir           = output_dir
         self.calib_folder         = None
         self.baseline_folder      = None
         self.baseline_pose_folder = None
@@ -116,8 +114,9 @@ class Camera:
         
         print("[INFO] STATE: Calibrate\n")
         # Setup directories
-        # TODO not really necessary but leave for now?
-        self.output_dir, self.calib_folder, self.baseline_folder, self.baseline_pose_folder = h.setup_directories()
+        # TODO not really necessary?
+        # self.output_dir, self.calib_folder, self.baseline_folder, self.baseline_pose_folder = h.setup_directories()
+        self.output_dir, self.calib_folder, self.baseline_folder, self.baseline_pose_folder = h.setup_directories(self.output_dir)
 
         # Calibration parameters
         CHESSBOARD, SQUARE_SIZE, L, MAX_CALIB_ATTEMPTS = h.setup_calib_parameters()
@@ -143,17 +142,19 @@ class Camera:
             self.params = h.prep_pi_cam_params(camera_file=CAMERA_SETTINGS_PATH)
 
             # Open camera and set focus
-            picam2_ = h.open_picam(self.params, picam2_, debug_mode=self.debug_mode)
+            # picam2_ = h.open_picam(self.params, picam2_, debug_mode=self.debug_mode)
+            picam2_ = h.open_picam(self.params, picam2_, debug_mode=self.debug_mode, output_dir=self.output_dir)
             if picam2_ is None:
                 print("Camera opening and focus failed\n")
                 CALIB_ATTEMPTS += 1
                 continue
 
             # Take short video and save to calibration folder
-            h.save_calib_video_picam(picam2_, SHOW_CAMERA_FEED, calib_time=5.0)
+            # h.save_calib_video_picam(picam2_, SHOW_CAMERA_FEED, calib_time=5.0)
+            h.save_calib_video_picam(picam2_, SHOW_CAMERA_FEED, calib_time=5.0, calib_folder=self.calib_folder)
 
             # Load images
-            images = glob.glob("outputs/calibration/*.jpeg")
+            images = glob.glob(f"{self.calib_folder}/*.jpeg")
             if len(images) < 5:
                 print("Not enough frames, retrying...\n")
                 CALIB_ATTEMPTS += 1
@@ -161,8 +162,17 @@ class Camera:
                     picam2_ = h.close_camera(picam2_)
                 continue
 
+            # ~ images = glob.glob("outputs/calibration/*.jpeg")
+            # ~ if len(images) < 5:
+                # ~ print("Not enough frames, retrying...\n")
+                # ~ CALIB_ATTEMPTS += 1
+                # ~ if picam2_ is not None:
+                    # ~ picam2_ = h.close_camera(picam2_)
+                # ~ continue
+
             # Detect chessboards
-            objpoints, imgpoints, img_size = h.detect_cboard_calib(images, self.ROIS, save_debug_images=SAVE_DEBUG_IMAGES)
+            # objpoints, imgpoints, img_size = h.detect_cboard_calib(images, self.ROIS, save_debug_images=SAVE_DEBUG_IMAGES)
+            objpoints, imgpoints, img_size = h.detect_cboard_calib(images, self.ROIS, save_debug_images=SAVE_DEBUG_IMAGES, debug_folder=f"{self.output_dir}/calibration_test")
             if len(objpoints) < 3:
                 print("Not enough valid detections, retrying...")
                 CALIB_ATTEMPTS += 1
@@ -184,7 +194,7 @@ class Camera:
             print("Camera calibration complete\n")
             self.saved_cam_settings = h.extract_applied_settings(picam2_)
 
-            # Cleanly close calibration camera
+            # Cleanly close camera
             h.close_camera(picam2_)
         # Unsuccessful calibration
         else:
@@ -223,7 +233,7 @@ class Camera:
         """
         print("[INFO] STATE: Running\n")
         # Run experiment
-        self.hist_records = h.save_exp_video(self.picam2, display_widget=SHOW_CAMERA_FEED, save_debug_images=SAVE_DEBUG_IMAGES, exp_time=30.0, WINDOW_SIZE=1)
+        self.hist_records = h.save_exp_video(self.picam2, display_widget=SHOW_CAMERA_FEED, save_debug_images=SAVE_DEBUG_IMAGES, exp_time=30.0, WINDOW_SIZE=1, output_dir=self.output_dir)
 
         # Check experiment was ok
         if self.hist_records is None:
@@ -239,10 +249,18 @@ class Camera:
         """
         print("[INFO] STATE: Save Results\n")
         # Cycle through images in baseline, estimate poses, save to file
-        h.process_baseline_data(self.objpoints_3boards, self.mtx, self.dist, self.ROIS, save_debug_images=SAVE_DEBUG_IMAGES)
+        # h.process_baseline_data(self.objpoints_3boards, self.mtx, self.dist, self.ROIS, save_debug_images=SAVE_DEBUG_IMAGES)
+        h.process_baseline_data(
+            self.objpoints_3boards, self.mtx, self.dist, self.ROIS,
+            save_debug_images=SAVE_DEBUG_IMAGES,
+            baseline_folder=self.baseline_folder,
+            pose_folder=self.baseline_pose_folder,
+            results_dir=f"{self.output_dir}/experiment_results"
+        )
 
         # Save histogram results
-        h.save_exp_results(self.hist_records)
+        # h.save_exp_results(self.hist_records)
+        h.save_exp_results(self.hist_records, results_dir=f"{self.output_dir}/experiment_results")
         
         # Turn off camera
         if self.picam2 is not None:
@@ -250,7 +268,8 @@ class Camera:
             self.picam2 = None
 
         # Cleanup
-        h.cleanup_images(DELETE_IMAGES)
+        # h.cleanup_images(DELETE_IMAGES)
+        h.cleanup_images(DELETE_IMAGES, output_dir=self.output_dir)
 
         # Publish ok to controller
         lcm_h.publish_cam_msg(cam_status=True)
@@ -284,6 +303,11 @@ class Camera:
 ## MAIN
 
 print("Starting camera program...")
+
+# Added for startup functionality
+boot_count = get_boot_count(BOOT_COUNT_FILE)
+output_dir = f"outputs/boot_{boot_count:03d}"
+print(f"[INFO] Boot count: {boot_count}, output dir: {output_dir}")
 
 camera = Camera()
 
