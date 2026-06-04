@@ -117,8 +117,12 @@ state_t PayloadController::handleIdleState()
     // QUESTION: What doees lcm.handleTimeout do
     // DUMMY: Remove OBC comms. Automatically transition after 3s
     std::this_thread::sleep_for(std::chrono::seconds(3));
-    std::cout << "[INFO] Payload controller state set to READ_TRAJECTORY." << std::endl;
-    return READ_TRAJECTORY;
+    // std::cout << "[INFO] Payload controller state set to READ_TRAJECTORY." << std::endl;
+    // return READ_TRAJECTORY;
+    
+    // To test entering debug
+    std::cout << "[INFO] Payload controller state set to DEBUG." << std::endl;
+    return DEBUG;
 }
 
 state_t PayloadController::handleReadTrajectoryState()
@@ -418,9 +422,9 @@ state_t PayloadController::handleDebugState()
     // // Transmit to OBC on success
     // publishRunResult(Commands::RunResult::RUN_SUCCESS); 
 
-    // Automatically deploy platform when camera has been calibrated
-    std::cout << "[INFO] Payload controller state set to DEPLOY." << std::endl;
-    return DEPLOY;
+    // Send back to idle for next OBC command
+    std::cout << "[INFO] Payload controller state set to IDLE." << std::endl;
+    return IDLE;
 }
 
 
@@ -558,7 +562,8 @@ bool PayloadController::writeAnglesToFile(std::string file_path)
 
 // --- Trajectory building -----------------------------------------------------
 
-bool PayloadController::interpolateTrajectory(const std::vector<PlatformPose>& raw_poses, trajectory_t& out)
+bool PayloadController::interpolateTrajectory(const std::vector<PlatformPose>& raw_poses, 
+    trajectory_t& out, float raw_pose_step, float trajectory_step)
 {
     // Require at least two poses to interpolate between
     if (raw_poses.size() < 2)
@@ -566,7 +571,7 @@ bool PayloadController::interpolateTrajectory(const std::vector<PlatformPose>& r
         return false;
     }
 
-    const int n_steps = TRAJECTORY_FILE_STEP / TRAJECTORY_STRUCT_STEP;
+    const int n_steps = raw_pose_step / trajectory_step;
 
     // Interpolate between each consecutive pair of raw poses
     for (size_t i = 0; i < raw_poses.size() - 1; i++)
@@ -583,13 +588,13 @@ bool PayloadController::interpolateTrajectory(const std::vector<PlatformPose>& r
             Eigen::Quaternionf orientation = raw_poses[i].orientation.slerp(t, raw_poses[i + 1].orientation);
 
             out.poses.push_back({pos, orientation});
-            out.times.push_back((float)(i * TRAJECTORY_FILE_STEP + j * TRAJECTORY_STRUCT_STEP));
+            out.times.push_back((float)(i * raw_pose_step + j * trajectory_step));
         }
     }
 
     // Append the final raw pose to close the trajectory
     out.poses.push_back(raw_poses.back());
-    out.times.push_back((float)((raw_poses.size() - 1) * TRAJECTORY_FILE_STEP));
+    out.times.push_back((float)((raw_poses.size() - 1) * raw_pose_step));
 
     return true;
 }
@@ -616,7 +621,6 @@ bool PayloadController::computeTrajectoryAngles(trajectory_t& traj)
 
     return result;
 }
-
 bool PayloadController::buildTrajectory()
 {
     trajectory_t temp;
@@ -630,7 +634,7 @@ bool PayloadController::buildTrajectory()
     }
 
     // Interpolate between raw poses at TRAJECTORY_STRUCT_STEP intervals
-    if (interpolateTrajectory(raw_poses, temp) == false)
+    if (interpolateTrajectory(raw_poses, temp, TRAJECTORY_FILE_STEP, TRAJECTORY_STRUCT_STEP) == false)
     {
         error.msg = "Could not interpolate trajectory.";
         return false;
@@ -647,6 +651,7 @@ bool PayloadController::buildTrajectory()
     trajectory = temp;
     return true;
 }
+
 
 // --- Trajectory debugging ----------------------------------------------------
 

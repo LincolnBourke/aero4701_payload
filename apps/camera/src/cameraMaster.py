@@ -302,7 +302,7 @@ class Camera:
         # Read parameters in from file
         self.params = h.prep_pi_cam_params(camera_file=CAMERA_SETTINGS_PATH)
 
-        # TODO check debug save file path
+        picam2_ = None
 
         # Open camera, set focus and take debug image
         picam2_ = h.open_picam(self.params, picam2_, debug_mode=True, output_dir="data/test_obc_debug")

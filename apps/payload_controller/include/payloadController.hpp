@@ -76,7 +76,7 @@ class PayloadController
         // Return value indicates if interpolation was successful.
         bool interpolateTrajectory(const std::vector<PlatformPose>& raw_poses, trajectory_t& out, 
             float raw_pose_step, float trajectory_step);
-
+        
         // Computes servo angles for every pose in traj, populating traj.angles.
         // Return value indicates if all angles could be calculated.
         bool computeTrajectoryAngles(trajectory_t& traj);
