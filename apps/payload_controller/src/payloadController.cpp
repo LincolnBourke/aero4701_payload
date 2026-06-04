@@ -4,10 +4,12 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <filesystem>
 
 #define TRAJECTORY_FILE_STEP 500 // ms, time between successive poses in the trajectory file
 #define TRAJECTORY_STRUCT_STEP 250 // ms, time between successive poses in the trajectory struct
 #define TRAJECTORY_FILE_PATH "data/trajectory_simple.csv"
+#define RESULTS_FILEPATH        "data/test_obc_nominal/results.csv"
 
 static const char* CH_CONT_TO_CAM = "PAYLOAD_CAM";   // controller --> camera
 static const char* CH_CAM_TO_CONT = "CAM_PAYLOAD";   // camera --> controller
@@ -80,6 +82,9 @@ void PayloadController::run()
         case ERROR:
             state = handleErrorState();
             break;
+        case DEBUG:
+            state = handleDebugState();
+            break;
         default: 
             std::cout << "[ERROR] Payload controller entered invalid state." << std::endl;
         }
@@ -102,6 +107,12 @@ state_t PayloadController::handleIdleState()
             std::cout << "[INFO] Payload controller state set to READ_TRAJECTORY." << std::endl;
             return READ_TRAJECTORY;
         }
+        // Only move to debug when command received
+        if (command_id == Commands::RunId::RUN_DEBUG)
+        {
+            std::cout << "[INFO] Payload controller state set to DEBUG." << std::endl;
+            return DEBUG;
+        }
     }
 
     return IDLE;
@@ -115,6 +126,8 @@ state_t PayloadController::handleReadTrajectoryState()
         std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
         return ERROR;
     }
+
+    // TODO check if will need a sleep for python
 
     // Automatically transition to servo calibration when the trajectory can be read
     std::cout << "[INFO] Payload controller state set to CALIBRATE_SERVOS." << std::endl;
@@ -212,10 +225,9 @@ state_t PayloadController::handleDeployState()
     if (platform_deployed == true)
     {
         std::cout << "[INFO] Payload controller state set to RUNNING." << std::endl;
-        experiment_start_time = std::chrono::steady_clock::now(); // Start timing experiment
-        trajectory_step = 0; // Track trajectory from the start
         
         // Publish deploy to camera 
+        std::this_thread::sleep_for(std::chrono::seconds(1));
         publishCameraCommand(DEPLOY, DEBUG_MODE);
 
         // Wait for camera to report complete
@@ -224,6 +236,10 @@ state_t PayloadController::handleDeployState()
             std::cout << "[INFO] Payload controller state set to TERMINATE_RUN." << std::endl;
             return TERMINATE_RUN;
         }
+
+        experiment_start_time = std::chrono::steady_clock::now(); // Start timing experiment
+        trajectory_step = 0; // Track trajectory from the start
+        
         return RUNNING; 
     }
 
@@ -239,6 +255,7 @@ state_t PayloadController::handleRunningState()
     if (trajectory_step == 0)
     {
         // Give camera python script a second to catch up
+        std::cout << "[INFO] Publish RUNNING to camera" << std::endl;
         std::this_thread::sleep_for(std::chrono::seconds(1));
         publishCameraCommand(RUNNING, DEBUG_MODE);
     }
@@ -280,22 +297,59 @@ state_t PayloadController::handleSaveResultsState()
     // Create a results file and save the servo angles across the trajectory
     // TODO
     // Suggested from Ollie - use this as base for code to save into experiment_results, then I will append to same file in camera python
-    // std::string results_dir = "outputs/experiment_results";
-    // std::filesystem::create_directories(results_dir);
-    // std::ofstream results_file(results_dir + "/experiment_results.bin", std::ios::binary);
-    // if (!results_file.is_open())
-    // {
-    //     std::cout << "[ERROR] Failed to open results file." << std::endl;
-    //     return ERROR;
-    // }
+    // Extract the boot count number on compute module (hardcoded path)
+    int boot_count = 0;
+    std::ifstream count_file("/home/slave2/Documents/service_test/boot_count.txt");
+    if (count_file.is_open())
+    {
+        count_file >> boot_count;
+        count_file.close();
+    }
+    else
+    {
+        std::cout << "[WARN] Could not read boot_count.txt, defaulting to 0" << std::endl;
+    }
 
+    // Create path names based on current boot
+    char boot_dir[64];
+    std::snprintf(boot_dir, sizeof(boot_dir), "outputs/boot_%03d", boot_count);
+    std::string results_dir = std::string(boot_dir) + "/experiment_results";
+    std::filesystem::create_directories(results_dir);
+
+    // Example of writing servo angles to csv
+    std::ofstream results_file(results_dir + "/experiment_results.csv");
+    if (!results_file.is_open())
+    {
+        std::cout << "[ERROR] Failed to open results file." << std::endl;
+        return ERROR;
+    }
+    // results_file << "tx,ty,tz,rx,ry,rz\n"; 
+    results_file << "0.0,0.0,0.0,0.0,0.0,0.0\n";
+    results_file.close();
+    
     // Publish SAVE_RESULTS state to camera
+    std::this_thread::sleep_for(std::chrono::seconds(1));
     publishCameraCommand(SAVE_RESULTS, DEBUG_MODE);
 
     // Wait for camera to report complete
     if (!waitForCamStatus(CAM_WAIT_TIMEOUT_SAVE_MS))
     {
         std::cout << "[INFO] State set to ERROR." << std::endl;
+        return ERROR;
+    }
+
+    // Copy across experiment results file to path for obc
+    std::string src = results_dir + "/experiment_results.csv";
+    std::string dst = RESULTS_FILEPATH;
+    std::filesystem::create_directories("data/test_obc_nominal");
+    try
+    {
+        std::filesystem::copy_file(src, dst, std::filesystem::copy_options::overwrite_existing);
+        std::cout << "[INFO] Results copied to " << dst << std::endl;
+    }
+    catch (const std::filesystem::filesystem_error& e)
+    {
+        std::cout << "[ERROR] Failed to copy results file: " << e.what() << std::endl;
         return ERROR;
     }
 
@@ -316,6 +370,7 @@ state_t PayloadController::handleTerminateRunState()
     }
 
     // Publish TERMINATE_RUN state to camera
+    // TODO check if will need sleep
     publishCameraCommand(TERMINATE_RUN, DEBUG_MODE);
 
     // Wait for camera to report complete
@@ -346,6 +401,27 @@ state_t PayloadController::handleErrorState()
     return IDLE;
 }
 
+state_t PayloadController::handleDebugState()
+{
+    // Start camera node
+    publishCameraCommand(DEBUG, DEBUG_MODE);
+    
+    // Wait for camera to report complete (1 min timeout for debug)
+    if (!waitForCamStatus(CAM_WAIT_TIMEOUT_CALIB_MS))
+    {
+        std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+        // Transmit to OBC error
+        publishRunResult(Commands::RunResult::RUN_FAIL);
+        return ERROR;
+    }
+
+    // Transmit to OBC on success
+    publishRunResult(Commands::RunResult::RUN_SUCCESS); 
+
+    // Send back to idle for next OBC command
+    std::cout << "[INFO] Payload controller state set to IDLE." << std::endl;
+    return IDLE;
+}
 
 // --- Trajectory tracking -----------------------------------------------------
 
@@ -391,32 +467,6 @@ bool PayloadController::retractPlatform()
     // TODO
     return false;
 }
-
-// Replaced with waitForCamStatus, but leaving in case needs to be brought back
-// bool PayloadController::waitForSaveComplete()
-// {
-//     bool result = false;
-//     int return_id;
-
-//     while (lcm.getFileno() >= 0)
-//     {
-//         lcm.handle();
-
-//         if (lcm_handler.checkSaveComplete(return_id))
-//         {
-//             if (return_id == Commands::SaveResult::SAVE_SUCCESS)
-//                 result = true;
-//             else if (return_id == Commands::SaveResult::SAVE_FAIL)
-//                 error.msg = "Camera node failed to save results.";
-//             else
-//                 error.msg = "Unknown return_id published to SAVE_COMPLETE.";
-
-//             break;
-//         }
-//     }
-
-//     return result;
-// }
 
 // --- File i/o ----------------------------------------------------------------
 
