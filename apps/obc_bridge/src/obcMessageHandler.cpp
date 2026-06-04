@@ -51,6 +51,18 @@ bool ObcMessageHandler::transmit(uint8_t id)
     return uart_interface.transmit(&msg);
 }
 
+// Transmit a unified ACK; payload[0] identifies the message being acknowledged
+bool ObcMessageHandler::transmitAck(uint8_t acked_id)
+{
+    UART_msg_t msg;
+    msg.sof        = UART_SOF;
+    msg.id         = PYLD_ACK_ID;
+    msg.length     = 1;
+    msg.payload[0] = acked_id;
+
+    return uart_interface.transmit(&msg);
+}
+
 // Search the receive queue for a message with the given ID.
 // On match, stores the message in last_message_read and removes it from the queue.
 bool ObcMessageHandler::checkMessage(uint8_t id)
@@ -58,6 +70,22 @@ bool ObcMessageHandler::checkMessage(uint8_t id)
     for (auto it = receive_queue.begin(); it != receive_queue.end(); ++it)
     {
         if (it->id == id)
+        {
+            last_message_read = *it;
+            receive_queue.erase(it);
+            return true;
+        }
+    }
+    return false;
+}
+
+// Search the receive queue for a unified ACK whose payload[0] matches acked_id.
+// On match, stores the message in last_message_read and removes it from the queue.
+bool ObcMessageHandler::checkAck(uint8_t acked_id)
+{
+    for (auto it = receive_queue.begin(); it != receive_queue.end(); ++it)
+    {
+        if (it->id == PYLD_ACK_ID && it->length >= 1 && it->payload[0] == acked_id)
         {
             last_message_read = *it;
             receive_queue.erase(it);
@@ -76,8 +104,14 @@ bool ObcMessageHandler::checkHeader()
     if (!checkMessage(PYLD_TRANSFER_HEADER_ID))
         return false;
 
-    // Read the number of payload messages to follow
-    memcpy(&num_expected_msgs, &last_message_read.payload[0], sizeof(uint16_t));
+    // Header format: [file_id: 1 byte][chunk_size: 4 bytes][num_chunks: 4 bytes]
+    uint8_t  file_id;
+    uint32_t chunk_size;
+    uint32_t num_chunks;
+    memcpy(&file_id,    &last_message_read.payload[0], sizeof(uint8_t));
+    memcpy(&chunk_size, &last_message_read.payload[1], sizeof(uint32_t));
+    memcpy(&num_chunks, &last_message_read.payload[5], sizeof(uint32_t));
+    num_expected_msgs = static_cast<uint16_t>(num_chunks);
     return true;
 }
 
@@ -298,6 +332,7 @@ bool ObcMessageHandler::serialiseResults(std::string file_path)
     // Prepare the first message struct
     UART_msg_t msg = {};
     uint16_t num_msgs = 0;
+    uint32_t max_chunk_size = 0;
     std::memcpy(&msg.payload[0], &num_msgs, sizeof(uint16_t)); // First two bytes are the packet index
     msg.length = sizeof(uint16_t);     // Update length as the message is filled
 
@@ -316,6 +351,10 @@ bool ObcMessageHandler::serialiseResults(std::string file_path)
                 {
                     msg.sof = UART_SOF;
                     msg.id  = PYLD_PACKET_ID;
+                    if (msg.length > max_chunk_size)
+                    {
+                        max_chunk_size = msg.length;
+                    }
                     transmit_queue.push(msg);
                     num_msgs++;
 
@@ -341,6 +380,10 @@ bool ObcMessageHandler::serialiseResults(std::string file_path)
                 {
                     msg.sof = UART_SOF;
                     msg.id  = PYLD_PACKET_ID;
+                    if (msg.length > max_chunk_size)
+                    {
+                        max_chunk_size = msg.length;
+                    }
                     transmit_queue.push(msg);
                     num_msgs++;
 
@@ -364,6 +407,10 @@ bool ObcMessageHandler::serialiseResults(std::string file_path)
     {
         msg.sof = UART_SOF;
         msg.id  = PYLD_PACKET_ID;
+        if (msg.length > max_chunk_size)
+        {
+            max_chunk_size = msg.length;
+        }
         transmit_queue.push(msg);
         num_msgs++;
     }
@@ -372,8 +419,12 @@ bool ObcMessageHandler::serialiseResults(std::string file_path)
     results_header = {};
     results_header.sof = UART_SOF;
     results_header.id = PYLD_TRANSFER_HEADER_ID;
-    memcpy(&results_header.payload[0], &num_msgs, sizeof(uint16_t));
-    results_header.length = sizeof(uint16_t);
+    uint8_t  file_id    = 0;
+    uint32_t num_chunks = static_cast<uint32_t>(num_msgs);
+    memcpy(&results_header.payload[0], &file_id,        sizeof(uint8_t));
+    memcpy(&results_header.payload[1], &max_chunk_size, sizeof(uint32_t)); 
+    memcpy(&results_header.payload[5], &num_chunks,     sizeof(uint32_t));
+    results_header.length = sizeof(uint8_t) + sizeof(uint32_t) + sizeof(uint32_t);
 
     return true;
 }
@@ -398,6 +449,7 @@ bool ObcMessageHandler::serialiseDebugResults(std::string file_path)
     // Pack bytes into UART messages with a 2-byte packet index prefix, same as serialiseResults()
     UART_msg_t msg = {};
     uint16_t num_msgs = 0;
+    uint32_t max_chunk_size = 0;
     std::memcpy(&msg.payload[0], &num_msgs, sizeof(uint16_t));
     msg.length = sizeof(uint16_t);
 
@@ -408,6 +460,10 @@ bool ObcMessageHandler::serialiseDebugResults(std::string file_path)
         {
             msg.sof = UART_SOF;
             msg.id  = PYLD_PACKET_ID;
+            if (msg.length > max_chunk_size)
+            {
+                max_chunk_size = msg.length;
+            }
             transmit_queue.push(msg);
             num_msgs++;
 
@@ -425,6 +481,10 @@ bool ObcMessageHandler::serialiseDebugResults(std::string file_path)
     {
         msg.sof = UART_SOF;
         msg.id  = PYLD_PACKET_ID;
+        if (msg.length > max_chunk_size)
+        {
+            max_chunk_size = msg.length;
+        }
         transmit_queue.push(msg);
         num_msgs++;
     }
@@ -433,8 +493,17 @@ bool ObcMessageHandler::serialiseDebugResults(std::string file_path)
     results_header = {};
     results_header.sof = UART_SOF;
     results_header.id  = PYLD_TRANSFER_HEADER_ID;
-    std::memcpy(&results_header.payload[0], &num_msgs, sizeof(uint16_t));
-    results_header.length = sizeof(uint16_t);
+    uint8_t  file_id    = 1;
+    uint32_t num_chunks = static_cast<uint32_t>(num_msgs);
+    memcpy(&results_header.payload[0], &file_id,        sizeof(uint8_t));  // File ID
+    memcpy(&results_header.payload[1], &max_chunk_size, sizeof(uint32_t)); // Maximum chunk size
+    memcpy(&results_header.payload[5], &num_chunks,     sizeof(uint32_t)); // Number of chunks
+    results_header.length = sizeof(uint8_t) + sizeof(uint32_t) + sizeof(uint32_t);
+
+    // File info message payload format:
+    // payload[0] = file id (1 byte long)
+    // payload[1] = chunk size (max size of a message payload) (4 bytes)
+    // payload[5] = number of chunks (number of messages coming) (4 bytes)
 
     std::cout << "[INFO] Serialised " << jpeg_bytes.size() << " bytes from '"
               << file_path << "' into " << num_msgs << " packets." << std::endl;

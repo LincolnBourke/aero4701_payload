@@ -15,25 +15,28 @@ uartInterface.hpp.
 #include <string>
 
 // --- Message IDs -------------------------------------------------------------
-// Experiment start / stop
-#define PYLD_START_ID       0xA0
-#define PYLD_START_ACK_ID   0xA1
-#define PYLD_STOP_ID        0xA2
-#define PYLD_STOP_ACK_ID    0xA3
 
-// File transfer - used for nominal & debug mode results transfer and for experiment settings file
-#define PYLD_REQUEST_TRANSFER_ID        0xA4
-#define PYLD_TRANSFER_ACK_ID            0xA5
-#define PYLD_TRANSFER_HEADER_ID         0xA6
-#define PYLD_HEADER_ACK_ID              0xA7
-#define PYLD_PACKET_ID                  0xA8
-#define PYLD_PACKET_ACK_ID              0xA9
-#define PYLD_TRANSFER_COMPLETE_ID       0xAA
-#define PYLD_TRANSFER_COMPLETE_ACK_ID   0xAB
+// Changes to message ids: 
+//      one ack for all messages 0x68
+//      transfer complete id: 0x70
+//      packet id: 0x69
+//      file info/header 0x66
+
+// Unified acknowledgement (payload[0] = ID of the message being acknowledged)
+#define PYLD_ACK_ID 0x68
+
+// Experiment start / stop
+#define PYLD_START_ID   0xA0
+#define PYLD_STOP_ID    0xA1
 
 // Debug mode
-#define PYLD_ENTER_DEBUG_ID 0xAC
-#define PYLD_DEBUG_ACK_ID   0xAD
+#define PYLD_ENTER_DEBUG_ID 0xA2
+
+// File transfer - used for nominal & debug mode results transfer and for experiment settings file
+#define PYLD_REQUEST_TRANSFER_ID    0xA4
+#define PYLD_TRANSFER_HEADER_ID     0x66
+#define PYLD_PACKET_ID              0x69
+#define PYLD_TRANSFER_COMPLETE_ID   0x70
 
 #define ACK_TIMEOUT 1000 // ms, time before a new message is sent because an acknowledge was not received
 
@@ -70,9 +73,15 @@ class ObcMessageHandler
         // Transmit an ID-only message with the given message ID
         bool transmit(uint8_t id);
 
+        // Transmit a unified ACK for the given message ID
+        bool transmitAck(uint8_t acked_id);
+
         // Check for a message with the given ID in the receive queue.
         // Populates last_message_read on match.
         bool checkMessage(uint8_t id);
+
+        // Check for a unified ACK whose payload identifies the given message ID
+        bool checkAck(uint8_t acked_id);
 
         // Reads the header sent by the OBC and sets the number of messages expected to receive
         bool checkHeader();

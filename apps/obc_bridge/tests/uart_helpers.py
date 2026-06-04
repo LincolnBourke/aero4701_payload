@@ -7,20 +7,14 @@ import struct
 import serial
 
 # --- Message IDs (mirror obcMessageHandler.hpp) ------------------------------
-PYLD_START_ID                 = 0xA0
-PYLD_START_ACK_ID             = 0xA1
-PYLD_STOP_ID                  = 0xA2
-PYLD_STOP_ACK_ID              = 0xA3
-PYLD_REQUEST_TRANSFER_ID      = 0xA4
-PYLD_TRANSFER_ACK_ID          = 0xA5
-PYLD_TRANSFER_HEADER_ID       = 0xA6
-PYLD_HEADER_ACK_ID            = 0xA7
-PYLD_PACKET_ID                = 0xA8
-PYLD_PACKET_ACK_ID            = 0xA9
-PYLD_TRANSFER_COMPLETE_ID     = 0xAA
-PYLD_TRANSFER_COMPLETE_ACK_ID = 0xAB
-PYLD_ENTER_DEBUG_ID           = 0xAC
-PYLD_DEBUG_ACK_ID             = 0xAD
+PYLD_ACK_ID              = 0x68  # unified ACK; payload[0] = ID of acknowledged message
+PYLD_START_ID            = 0xA0
+PYLD_STOP_ID             = 0xA1
+PYLD_ENTER_DEBUG_ID      = 0xA2
+PYLD_REQUEST_TRANSFER_ID = 0xA4
+PYLD_TRANSFER_HEADER_ID  = 0x66
+PYLD_PACKET_ID           = 0x69
+PYLD_TRANSFER_COMPLETE_ID = 0x70
 
 SOF       = 0x64
 BAUD_RATE = 115200
@@ -50,6 +44,16 @@ def build_msg(msg_id: int, payload: bytes) -> bytes:
     header = bytes([SOF, msg_id, len(payload)])
     crc = crc16_ccitt(header + payload)
     return header + payload + struct.pack('<H', crc)
+
+
+def build_ack(acked_id: int) -> bytes:
+    """Build a unified ACK message for the given message ID."""
+    return build_msg(PYLD_ACK_ID, bytes([acked_id]))
+
+
+def is_ack_for(result, acked_id: int) -> bool:
+    """Check that a received message is a unified ACK for the given message ID."""
+    return result is not None and result[0] == PYLD_ACK_ID and len(result[1]) >= 1 and result[1][0] == acked_id
 
 
 def recv_msg(port: serial.Serial):

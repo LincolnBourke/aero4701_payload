@@ -22,12 +22,12 @@ import struct
 import serial
 
 from uart_helpers import (
-    PYLD_REQUEST_TRANSFER_ID, PYLD_TRANSFER_ACK_ID,
-    PYLD_TRANSFER_HEADER_ID, PYLD_HEADER_ACK_ID,
-    PYLD_PACKET_ID, PYLD_PACKET_ACK_ID,
-    PYLD_TRANSFER_COMPLETE_ID, PYLD_TRANSFER_COMPLETE_ACK_ID,
+    PYLD_REQUEST_TRANSFER_ID,
+    PYLD_TRANSFER_HEADER_ID,
+    PYLD_PACKET_ID,
+    PYLD_TRANSFER_COMPLETE_ID,
     BAUD_RATE, RESULT_TIMESTEPS,
-    build_msg, recv_msg,
+    build_ack, recv_msg,
 )
 
 # Results file binary schema (must match serialiseResults() in obcMessageHandler.cpp)
@@ -50,14 +50,14 @@ def receive_results(port: serial.Serial, output_csv_path: str):
     print("[OBC] Waiting for transfer request from payload...")
     result = recv_msg(port)
     assert result and result[0] == PYLD_REQUEST_TRANSFER_ID, "Expected REQUEST_TRANSFER"
-    port.write(build_msg(PYLD_TRANSFER_ACK_ID, bytes([PYLD_TRANSFER_ACK_ID])))
+    port.write(build_ack(PYLD_REQUEST_TRANSFER_ID))
 
-    # Step 2: wait for HEADER (num_packets), send HEADER_ACK
+    # Step 2: wait for HEADER (file_id, chunk_size, num_packets), send HEADER_ACK
     result = recv_msg(port)
     assert result and result[0] == PYLD_TRANSFER_HEADER_ID, "Expected TRANSFER_HEADER"
-    num_packets = struct.unpack('<H', result[1][:2])[0]
-    print(f"[OBC] Expecting {num_packets} packets")
-    port.write(build_msg(PYLD_HEADER_ACK_ID, bytes([PYLD_HEADER_ACK_ID])))
+    file_id, chunk_size, num_packets = struct.unpack('<BII', result[1][:9])
+    print(f"[OBC] Expecting {num_packets} packets (file_id={file_id}, chunk_size={chunk_size})")
+    port.write(build_ack(PYLD_TRANSFER_HEADER_ID))
 
     # Step 3: receive each packet, ack, collect data bytes (strip 2-byte index prefix)
     raw_chunks = []
@@ -67,13 +67,13 @@ def receive_results(port: serial.Serial, output_csv_path: str):
         index = struct.unpack('<H', result[1][:2])[0]
         assert index == i, f"Sequence error: expected {i}, got {index}"
         raw_chunks.append(bytes(result[1][2:]))
-        port.write(build_msg(PYLD_PACKET_ACK_ID, bytes([PYLD_PACKET_ACK_ID])))
+        port.write(build_ack(PYLD_PACKET_ID))
         print(f"[OBC] Packet {i + 1}/{num_packets} received")
 
     # Step 4: wait for TRANSFER_COMPLETE, send TRANSFER_COMPLETE_ACK
     result = recv_msg(port)
     assert result and result[0] == PYLD_TRANSFER_COMPLETE_ID, "Expected TRANSFER_COMPLETE"
-    port.write(build_msg(PYLD_TRANSFER_COMPLETE_ACK_ID, bytes([PYLD_TRANSFER_COMPLETE_ACK_ID])))
+    port.write(build_ack(PYLD_TRANSFER_COMPLETE_ID))
     print("[OBC] Transfer complete.")
 
     # Flatten packet chunks into a single byte stream

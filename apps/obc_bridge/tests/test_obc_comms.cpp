@@ -41,7 +41,7 @@ class ObcBridgeTest : public ObcBridge
                 obc_messager.drainUart();
                 if (obc_messager.checkMessage(PYLD_ENTER_DEBUG_ID))
                 {
-                    obc_messager.transmit(PYLD_DEBUG_ACK_ID);
+                    obc_messager.transmitAck(PYLD_ENTER_DEBUG_ID);
                     break;
                 }
             }
@@ -72,7 +72,7 @@ class ObcBridgeTest : public ObcBridge
                 obc_messager.drainUart();
                 if (obc_messager.checkMessage(PYLD_REQUEST_TRANSFER_ID))
                 {
-                    obc_messager.transmit(PYLD_TRANSFER_ACK_ID);
+                    obc_messager.transmitAck(PYLD_REQUEST_TRANSFER_ID);
                     break;
                 }
             }

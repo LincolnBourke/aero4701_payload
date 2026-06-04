@@ -98,20 +98,20 @@ ObcBridgeState ObcBridge::handleIdleState()
     if (obc_messager.checkMessage(PYLD_START_ID))
     {
         // Requested to start payload experiment
-        obc_messager.transmit(PYLD_START_ACK_ID);
+        obc_messager.transmitAck(PYLD_START_ID);
         return ObcBridgeState::DO_EXPERIMENT;
     }
     else if (obc_messager.checkMessage(PYLD_REQUEST_TRANSFER_ID))
     {
         // Request from OBC to transfer a data file
         // Assume transfer requests are for the experiment settings file
-        obc_messager.transmit(PYLD_TRANSFER_ACK_ID);
+        obc_messager.transmitAck(PYLD_REQUEST_TRANSFER_ID);
         return ObcBridgeState::RECEIVE_SETTINGS;
     }
     else if (obc_messager.checkMessage(PYLD_ENTER_DEBUG_ID))
     {
         // Request from OBC to enter debug mode
-        obc_messager.transmit(PYLD_DEBUG_ACK_ID);
+        obc_messager.transmitAck(PYLD_ENTER_DEBUG_ID);
         return ObcBridgeState::DEBUG;
     }
 
@@ -135,7 +135,7 @@ ObcBridgeState ObcBridge::handleReceiveSettingsState()
             case ReceiveSettingsState::WAIT_HEADER:
                 if (obc_messager.checkHeader() == true)
                 {
-                    obc_messager.transmit(PYLD_HEADER_ACK_ID);
+                    obc_messager.transmitAck(PYLD_TRANSFER_HEADER_ID);
                     state = ReceiveSettingsState::WAIT_PACKET;
                 }
                 break;
@@ -143,7 +143,7 @@ ObcBridgeState ObcBridge::handleReceiveSettingsState()
             case ReceiveSettingsState::WAIT_PACKET:
                 if (obc_messager.checkPacket() == true)
                 {
-                    obc_messager.transmit(PYLD_PACKET_ACK_ID);
+                    obc_messager.transmitAck(PYLD_PACKET_ID);
                     if (!obc_messager.isReceiveComplete())
                         state = ReceiveSettingsState::WAIT_PACKET;
                     else
@@ -155,7 +155,7 @@ ObcBridgeState ObcBridge::handleReceiveSettingsState()
                 if (obc_messager.checkMessage(PYLD_TRANSFER_COMPLETE_ID) == true)
                 {
                     // Acknowledge the transfer complete signal before processing
-                    obc_messager.transmit(PYLD_TRANSFER_COMPLETE_ACK_ID);
+                    obc_messager.transmitAck(PYLD_TRANSFER_COMPLETE_ID);
 
                     // Deserialise received packets into trajectory and scalar settings files
                     if (!obc_messager.deserialise(TRAJECTORY_SETTINGS_FILEPATH, SCALAR_SETTINGS_FILEPATH))
@@ -251,7 +251,7 @@ ObcBridgeState ObcBridge::runTransmitStateMachine()
                 break;
 
             case TransmitResultState::WAIT_TRANSFER_ACK:
-                if (obc_messager.checkMessage(PYLD_TRANSFER_ACK_ID) == true)
+                if (obc_messager.checkAck(PYLD_REQUEST_TRANSFER_ID) == true)
                     state = TransmitResultState::SEND_HEADER;
                 else if (readTime() > ack_timeout)
                     state = TransmitResultState::REQUEST_TRANSFER;
@@ -270,7 +270,7 @@ ObcBridgeState ObcBridge::runTransmitStateMachine()
                 break;
 
             case TransmitResultState::WAIT_HEADER_ACK:
-                if (obc_messager.checkMessage(PYLD_HEADER_ACK_ID) == true)
+                if (obc_messager.checkAck(PYLD_TRANSFER_HEADER_ID) == true)
                     state = TransmitResultState::SEND_PACKET;
                 else if (readTime() > ack_timeout)
                     state = TransmitResultState::SEND_HEADER;
@@ -288,7 +288,7 @@ ObcBridgeState ObcBridge::runTransmitStateMachine()
                 break;
 
             case TransmitResultState::WAIT_PACKET_ACK:
-                if (obc_messager.checkMessage(PYLD_PACKET_ACK_ID) == true)
+                if (obc_messager.checkAck(PYLD_PACKET_ID) == true)
                 {
                     if (!obc_messager.isTransmitQueueEmpty())
                         state = TransmitResultState::SEND_PACKET;
@@ -315,7 +315,7 @@ ObcBridgeState ObcBridge::runTransmitStateMachine()
                 break;
 
             case TransmitResultState::TRANSFER_COMPLETE_ACK:
-                if (obc_messager.checkMessage(PYLD_TRANSFER_COMPLETE_ACK_ID) == true)
+                if (obc_messager.checkAck(PYLD_TRANSFER_COMPLETE_ID) == true)
                     return ObcBridgeState::IDLE;
                 else if (readTime() > ack_timeout)
                 {

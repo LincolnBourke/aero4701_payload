@@ -28,12 +28,12 @@ import struct
 import serial
 
 from uart_helpers import (
-    PYLD_REQUEST_TRANSFER_ID, PYLD_TRANSFER_ACK_ID,
-    PYLD_TRANSFER_HEADER_ID, PYLD_HEADER_ACK_ID,
-    PYLD_PACKET_ID, PYLD_PACKET_ACK_ID,
-    PYLD_TRANSFER_COMPLETE_ID, PYLD_TRANSFER_COMPLETE_ACK_ID,
+    PYLD_REQUEST_TRANSFER_ID,
+    PYLD_TRANSFER_HEADER_ID,
+    PYLD_PACKET_ID,
+    PYLD_TRANSFER_COMPLETE_ID,
     BAUD_RATE, MAX_DATA_PER_PACKET, RESULT_TIMESTEPS,
-    build_msg, recv_msg,
+    build_msg, recv_msg, is_ack_for,
 )
 
 
@@ -108,27 +108,27 @@ def send_settings(port: serial.Serial, packets: list):
     num = len(packets)
     print(f"[OBC] Starting settings transfer: {num} packets")
 
-    # Step 1: request transfer, wait for TRANSFER_ACK
+    # Step 1: request transfer, wait for ACK
     port.write(build_msg(PYLD_REQUEST_TRANSFER_ID, bytes([PYLD_REQUEST_TRANSFER_ID])))
     result = recv_msg(port)
-    assert result and result[0] == PYLD_TRANSFER_ACK_ID, "Expected TRANSFER_ACK"
+    assert is_ack_for(result, PYLD_REQUEST_TRANSFER_ID), "Expected ACK for REQUEST_TRANSFER"
 
-    # Step 2: send header (uint16_t packet count), wait for HEADER_ACK
-    port.write(build_msg(PYLD_TRANSFER_HEADER_ID, struct.pack('<H', num)))
+    # Step 2: send header (file_id, chunk_size, num_packets), wait for ACK
+    port.write(build_msg(PYLD_TRANSFER_HEADER_ID, struct.pack('<BII', 0, MAX_DATA_PER_PACKET, num)))
     result = recv_msg(port)
-    assert result and result[0] == PYLD_HEADER_ACK_ID, "Expected HEADER_ACK"
+    assert is_ack_for(result, PYLD_TRANSFER_HEADER_ID), "Expected ACK for TRANSFER_HEADER"
 
-    # Step 3: send each packet, wait for PACKET_ACK before sending the next
+    # Step 3: send each packet, wait for ACK before sending the next
     for i, pkt_payload in enumerate(packets):
         port.write(build_msg(PYLD_PACKET_ID, pkt_payload))
         result = recv_msg(port)
-        assert result and result[0] == PYLD_PACKET_ACK_ID, f"Expected PACKET_ACK for packet {i}"
+        assert is_ack_for(result, PYLD_PACKET_ID), f"Expected ACK for packet {i}"
         print(f"[OBC] Packet {i + 1}/{num} acknowledged")
 
-    # Step 4: signal transfer complete, wait for TRANSFER_COMPLETE_ACK
+    # Step 4: signal transfer complete, wait for ACK
     port.write(build_msg(PYLD_TRANSFER_COMPLETE_ID, bytes([PYLD_TRANSFER_COMPLETE_ID])))
     result = recv_msg(port)
-    assert result and result[0] == PYLD_TRANSFER_COMPLETE_ACK_ID, "Expected TRANSFER_COMPLETE_ACK"
+    assert is_ack_for(result, PYLD_TRANSFER_COMPLETE_ID), "Expected ACK for TRANSFER_COMPLETE"
 
     print("[OBC] Settings transfer complete.")
 

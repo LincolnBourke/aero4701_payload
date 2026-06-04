@@ -25,7 +25,7 @@ import sys
 import time
 import serial
 
-from uart_helpers import BAUD_RATE, PYLD_ENTER_DEBUG_ID, PYLD_DEBUG_ACK_ID, build_msg, recv_msg
+from uart_helpers import BAUD_RATE, PYLD_ENTER_DEBUG_ID, build_msg, recv_msg, is_ack_for
 from obc_receive_jpeg import receive_jpeg
 
 
@@ -45,7 +45,7 @@ if __name__ == "__main__":
         print("[OBC] Phase 1: sending enter-debug command to payload...")
         port.write(build_msg(PYLD_ENTER_DEBUG_ID, bytes([PYLD_ENTER_DEBUG_ID])))
         result = recv_msg(port)
-        assert result and result[0] == PYLD_DEBUG_ACK_ID, "Expected DEBUG_ACK"
+        assert is_ack_for(result, PYLD_ENTER_DEBUG_ID), "Expected ACK for ENTER_DEBUG"
         print("[OBC] Debug mode acknowledged by payload.")
 
         # The payload sleeps for wait_seconds before initiating the JPEG transfer.
