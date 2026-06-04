@@ -112,9 +112,9 @@ void ServoStateReader::pubState() {
 
 double ServoStateReader::_mapRawToAngle(int raw, int raw_down, int raw_up, double ang_down_rad, double ang_up_rad) {
     // Constrain to the calibrated range (handles inverted channels naturally)
-    int lo = std::min(raw_down, raw_up);
-    int hi = std::max(raw_down, raw_up);
-    raw = std::max(lo, std::min(hi, raw));
+    // int lo = std::min(raw_down, raw_up);
+    // int hi = std::max(raw_down, raw_up);
+    // raw = std::max(lo, std::min(hi, raw));
 
     // Linear interpolation: raw_down -> ang_down_rad, raw_up -> ang_up_rad
     // Outputs radians with 0 = horizontal, positive = above, negative = below.

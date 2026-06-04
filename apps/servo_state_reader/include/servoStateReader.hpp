@@ -15,29 +15,30 @@
 
 /*
 
+channel 0: 
+    up: 104
+    zero adc value: 217
+
 channel 1: 
-    down: 255
-    up: 93
+    up: 252
+    zero adc value: 150
 
 channel 2: 
-    down: 42
-    up: 255
+    up: 100
+    zero adc value: 210
 
 channel 3: 
-    down: 255
-    up: 94
+    up: 248
+    zero adc value: 129
 
 channel 4: 
-    down: 40
-    up: 240 
+    up: 97
+    zero adc value: 206
 
 channel 5: 
-    down: 255
-    up: 90
+    up: 249
+    zero adc value: 145
 
-channel 6: 
-    down: 40
-    up: 240
 */
 
 class ServoStateReader
@@ -57,13 +58,21 @@ class ServoStateReader
             double ang_up_rad;   // Physical angle (rad) at raw_up
         };
 
+        // const ChannelCalibration _cal[6] = {
+        //     { 217, 104, 0,  M_PI/2},  // ch5 (inverted ADC)
+        //     { 150, 252, 0,  M_PI/2},  // ch4
+        //     { 210, 100, 0,  M_PI/2},  // ch3 (inverted ADC)
+        //     { 129, 248, 0,  M_PI/2},  // ch2
+        //     { 206, 97, 0,  M_PI/2},  // ch1 (inverted ADC)
+        //     { 145, 249, 0,  M_PI/2},  // ch0
+        // };
         const ChannelCalibration _cal[6] = {
-            { 110, 255, -M_PI/4,  M_PI/2},  // ch5 (inverted ADC)
-            { 255, 110, -M_PI/4,  M_PI/2},  // ch4
-            { 110, 255, -M_PI/4,  M_PI/2},  // ch3 (inverted ADC)
-            { 255, 110, -M_PI/4,  M_PI/2},  // ch2
-            { 110, 225, -M_PI/4,  M_PI/2},  // ch1 (inverted ADC)
-            { 255, 110, -M_PI/4,  M_PI/2},  // ch0
+            { 145, 249, 0, M_PI/2},  // ch0
+            { 206,  97, 0, M_PI/2},  // ch1 (inverted ADC)
+            { 129, 248, 0, M_PI/2},  // ch2
+            { 210, 100, 0, M_PI/2},  // ch3 (inverted ADC)
+            { 150, 252, 0, M_PI/2},  // ch4
+            { 217, 104, 0, M_PI/2},  // ch5 (inverted ADC)
         };
 
 
