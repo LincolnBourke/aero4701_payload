@@ -223,8 +223,8 @@ bool StewartPlatform::computeServoTargets(bool print_errors)
             if (print_errors)
                 std::cout << "Error: Angular skew exceeded." << std::endl;
             
-            // successful_calculation = false; 
-            // break;
+            successful_calculation = false; 
+            break;
         }
 
         servo_targets[i] = servo_target;

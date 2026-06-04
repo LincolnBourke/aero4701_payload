@@ -1,4 +1,3 @@
 build/*
-data/*
 lcm_messages/payload_messages/*
 .vscode/settings.json
