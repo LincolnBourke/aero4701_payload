@@ -38,10 +38,8 @@ PayloadController::PayloadController()
 
     // DUMMY: Removed old subscribers
     // // Subscribe lcm handler to messages
-    // lcm.subscribe("RUN_COMMAND", &LcmHandler::handleRunCommand, &lcm_handler);
+    lcm.subscribe("RUN_COMMAND", &LcmHandler::handleRunCommand, &lcm_handler);
     // lcm.subscribe("SAVE_COMPLETE", &LcmHandler::handleSaveComplete, &lcm_handler);
-
-    // TODO: Add way to enter DEBUG?
     
     // Added camera to controller channel
     lcm.subscribe(CH_CAM_TO_CONT, &LcmHandler::handleCamMsg, &lcm_handler);
@@ -98,31 +96,36 @@ void PayloadController::run()
 
 state_t PayloadController::handleIdleState()
 {
-    // int command_id; 
+    int command_id; 
     // Check if a run command has been published
-    // lcm.handleTimeout(0);
-    // if (lcm_handler.checkRunCommand(command_id))
-    // {
-    //     // Only move to setup when start command received
-    //     if (command_id == Commands::RunId::RUN_CONTROLLER)
-    //     {
-    //         std::cout << "[INFO] Payload controller state set to READ_TRAJECTORY." << std::endl;
-    //         return READ_TRAJECTORY;
-    //     }
-    // TODO: Add enter DEBUG here
-    // }
-    //
-    // return IDLE;
-
-    // QUESTION: What doees lcm.handleTimeout do
-    // DUMMY: Remove OBC comms. Automatically transition after 3s
-    std::this_thread::sleep_for(std::chrono::seconds(3));
-    // std::cout << "[INFO] Payload controller state set to READ_TRAJECTORY." << std::endl;
-    // return READ_TRAJECTORY;
+    lcm.handleTimeout(0);
+    if (lcm_handler.checkRunCommand(command_id))
+    {
+        // Only move to setup when start command received
+        if (command_id == Commands::RunId::RUN_CONTROLLER)
+        {
+            std::cout << "[INFO] Payload controller state set to READ_TRAJECTORY." << std::endl;
+            return READ_TRAJECTORY;
+        }
+        // Only move to setup when start command received
+        if (command_id == Commands::RunId::RUN_DEBUG)
+        {
+            std::cout << "[INFO] Payload controller state set to DEBUG." << std::endl;
+            return DEBUG;
+        }
+    }
     
-    // To test entering debug
-    std::cout << "[INFO] Payload controller state set to DEBUG." << std::endl;
-    return DEBUG;
+    return IDLE;
+
+    // // QUESTION: What doees lcm.handleTimeout do
+    // // DUMMY: Remove OBC comms. Automatically transition after 3s
+    // std::this_thread::sleep_for(std::chrono::seconds(3));
+    // // std::cout << "[INFO] Payload controller state set to READ_TRAJECTORY." << std::endl;
+    // // return READ_TRAJECTORY;
+    
+    // // To test entering debug
+    // std::cout << "[INFO] Payload controller state set to DEBUG." << std::endl;
+    // return DEBUG;
 }
 
 state_t PayloadController::handleReadTrajectoryState()
@@ -419,8 +422,8 @@ state_t PayloadController::handleDebugState()
         return ERROR;
     }
 
-    // // Transmit to OBC on success
-    // publishRunResult(Commands::RunResult::RUN_SUCCESS); 
+    // Transmit to OBC on success
+    publishRunResult(Commands::RunResult::RUN_SUCCESS); 
 
     // Send back to idle for next OBC command
     std::cout << "[INFO] Payload controller state set to IDLE." << std::endl;

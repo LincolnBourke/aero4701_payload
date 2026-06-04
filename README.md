@@ -200,5 +200,36 @@ diff data/test_obc_debug/debug_mode_focus.jpeg data/test_obc_debug/debug_mode_fo
 
 Expected: no difference (JPEG is transmitted as raw bytes with no conversion).
 
+
+
+## Camera-Payload Controller Tests
+
+### From Terminal
+
+
+
+### From Startup 
+testapp_service is configured to call cameraMaster.py and cameraPayloadController.cpp on startup and run experiment automatically. This is configured in a python service script on compute module.
+
+To avoid overwriting results on subsequent startups, it reads and increments a counter from boot_count.txt on the compute module, to save results in outputs/boot_0XX. 
+
+Check on status of system
+
+<!-- All apps are run from the root directory.
+
+C++ apps are run from an entry point with the same name as the app:  
+
+```bash
+./build/apps/<app_name>/<app_name>
+```
+
+Python apps may have a different entry point name and are not located in build/:
+
+```bash 
+python apps/<app_name>/<entry_point>.py
+``` -->
+
+
+
 ## Notes
 Zero angles: [ 90.00, 180.00, 79.71, 180.00, 97.71, 180.00 ] 
