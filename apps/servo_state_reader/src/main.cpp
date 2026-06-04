@@ -10,9 +10,8 @@ int main()
     while (true)
     {
         reader.pubState();
-        // 10 seconds is quite long for a control loop;
         // usleep(10000) would give you 100Hz
-        usleep(10000);
+        usleep(1000);
     }
 
     return 0;

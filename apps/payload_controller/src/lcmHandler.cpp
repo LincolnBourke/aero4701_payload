@@ -121,3 +121,28 @@ bool LcmHandler::checkSwitchState( int (&switch_states)[3], bool &all_flag )
     switch_state_received = false;
     return true;
 }
+
+void LcmHandler::handleServoStateMsg(const lcm::ReceiveBuffer* rbuf,
+    const std::string& channel, const payload_messages::true_servo_angles_t* msg)
+{ 
+    // printf("[INFO] Received message on channel %s\n", channel.c_str());
+
+    servo_angs_received = true;
+    last_servo_angs_msg = *msg;
+
+    // Avoid compile errors
+    (void)channel; 
+    (void)rbuf;
+}
+
+bool LcmHandler::checkServoAngs( float (&servo_angs)[6] ) {
+    if (!servo_angs_received) return false;
+
+    // Assign each index
+    for (int i = 0; i < 6; ++i) {
+        servo_angs[i] = last_servo_angs_msg.angles[i];
+    }
+
+    servo_angs_received = false;
+    return true;
+}

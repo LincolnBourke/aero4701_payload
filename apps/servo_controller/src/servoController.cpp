@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <iomanip>
 #include <cmath>
+#include <array>
 
 #define MAGIC_OFFSET 3000
 #define MAGIC_OFFSET_CORRECTION 700
@@ -73,18 +74,61 @@ void ServoController::handleServoAngMsg(const lcm::ReceiveBuffer* rbuf,
     }
     std::cout << std::endl;
 
-    // PWM ranges from 384 - 3008
-    // int mid_point = (3008 + 384) / 2;
-    // int half_range = 3008 - mid_point;
+    /* 
+    Calibration measurements from Maestro Control Center 
 
-    const int EVEN_MIN = 816;
-    const int EVEN_MAX = 3008;
-    const int ODD_MIN = 384;
-    const int ODD_MAX = 2112;
-    int even_centre = (EVEN_MAX + EVEN_MIN) / 2;
-    int odd_centre = (ODD_MAX + ODD_MIN) / 2;
-    int even_units_per_radian = (EVEN_MAX - EVEN_MIN) / M_PI;
-    int odd_units_per_radian = (ODD_MAX - ODD_MIN) / M_PI;
+    Servo 0
+        Up:         917.50
+        Horizontal: 1880.00 
+        ADC limit:  2224.00 
+
+    Servo 1: 
+        Up:         2189.00
+        Horizontal: 1300.00
+        ADC limit:  2224.00 
+    
+
+    Servo 2: 
+        Up:         877.50
+        Horizontal: 1813.00
+        ADC limit:  2224.00
+
+    Servo 3: 
+        Up:         2166.75
+        Horizontal: 1117.00
+        ADC limit:  2224.00
+
+    Servo 4: 
+        Up:         854.75
+        Horizontal: 1784.50
+        ADC limit:  2224.00
+
+    Servo 5: 
+        Up:         2184.00
+        Horizontal: 1271.25
+        ADC limit:  2224.00
+
+    */
+
+    std::array<float, 6> max_pwm = {917.50, 2189.0, 877.5, 2166.75, 854.75, 2184.0};
+    std::array<float, 6> flat_pwm = {1880.0, 1300.0, 1813.0, 1117.0, 1784.5, 1271.25};
+    // const float limit_pwm = 2224.0;
+
+    // calculate how many pwm units there are per radian
+    std::array<float, 6> units_per_radian = {0};
+    for (int i = 0; i < count; i++)
+    {
+        units_per_radian[i] = std::abs(max_pwm[i] - flat_pwm[i]) / (M_PI/2);
+    }
+
+    // const int EVEN_MIN = 816;
+    // const int EVEN_MAX = 3008;
+    // const int ODD_MIN = 384;
+    // const int ODD_MAX = 2112;
+    // int even_centre = (EVEN_MAX + EVEN_MIN) / 2;
+    // int odd_centre = (ODD_MAX + ODD_MIN) / 2;
+    // int even_units_per_radian = (EVEN_MAX - EVEN_MIN) / M_PI;
+    // int odd_units_per_radian = (ODD_MAX - ODD_MIN) / M_PI;
 
     // Extract servo targets and convert to Maestro units
     std::cout << "Maestro targets:";
@@ -92,17 +136,19 @@ void ServoController::handleServoAngMsg(const lcm::ReceiveBuffer* rbuf,
     {
         float angle_rad = msg->angles[i];
         
-        // Conver the angle in radians to a PWM signal 
+        // Convert the angle in radians to a PWM signal 
         unsigned short maestro_target;
         if (i % 2 == 1) // Odd - range max is up
         {
             // maestro_target = mid_point + float_target * half_range / (M_PI/2) + MAGIC_OFFSET;
-            maestro_target = odd_centre + angle_rad * odd_units_per_radian;
+            // maestro_target = odd_centre + angle_rad * odd_units_per_radian;
+            maestro_target = flat_pwm[i] + angle_rad * units_per_radian[i];
         }
         else // Even - range max is down
         {
             // maestro_target = mid_point - float_target * half_range / (M_PI/2) + MAGIC_OFFSET + MAGIC_OFFSET_CORRECTION;
-            maestro_target = even_centre - angle_rad * even_units_per_radian;
+            // maestro_target = even_centre - angle_rad * even_units_per_radian;
+            maestro_target = flat_pwm[i] - angle_rad * units_per_radian[i]; 
         }
         std::cout << " s" << i << ": " << maestro_target;
         // Write to hardware

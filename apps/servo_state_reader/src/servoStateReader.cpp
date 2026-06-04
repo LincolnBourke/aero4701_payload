@@ -36,19 +36,11 @@ ServoStateReader::~ServoStateReader() {
 }
 
 void ServoStateReader::pubState() {
-    payload_messages::servo_angs msg;
+    payload_messages::true_servo_angles_t msg;
 
-    auto now = std::chrono::system_clock::now();
-    auto duration = now.time_since_epoch();
+    // 1. Create a temporary vector to store the raw ADC values
+    std::vector<int> raw_adcs(_num_channels, 0);
 
-    // Cast to desired unit (e.g., milliseconds) and get numeric count
-    auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
-
-    msg.timestamp = millis;
-    msg.num_channels = _num_channels;
-    msg.position.resize(_num_channels);
-
-    // std::cout << "[INFO] Raw servo angles: [ "; 
     for (int channel = 0; channel < _num_channels; channel++) {
         // --- ADS7830 SPECIFIC COMMAND LOGIC ---
         uint8_t commandByte = 0;
@@ -69,47 +61,62 @@ void ServoStateReader::pubState() {
             continue;
         }
 
+        // Read and discard stale reading
+        uint8_t stale;
+        read(_file, &stale, 1);  // Discard previous conversion result
 
+        // Now should be fresh 
         uint8_t adcValue;
+
         // ADS7830 only returns ONE byte (8-bit resolution)
         if (read(_file, &adcValue, 1) == 1) {
-            msg.position[5-channel] = _mapRawToAngle(
+            // Note: maintaining your existing 5-channel reverse mapping
+            msg.angles[5-channel] = _mapRawToAngle(
                 (int)adcValue,
                 _cal[channel].raw_down,
-                _cal[channel].raw_up
+                _cal[channel].raw_up,
+                _cal[channel].ang_down_rad,
+                _cal[channel].ang_up_rad
             );
-            // std::cout << (int)adcValue << " ";
+            // Store the raw value in the same reversed index position
+            raw_adcs[5-channel] = (int)adcValue; 
         } else {
-            msg.position[channel] = 0.0;
-            // std::cout << "NaN" << " ";
+            // I recommend applying the reverse index here too to prevent array mismatch
+            msg.angles[5-channel] = 0.0; 
+            raw_adcs[5-channel] = -1; // Use -1 to visually indicate an I2C read error
         }
     }
-    // std::cout << " ]" << std::endl << std::flush; 
 
     _lcm.publish(_channel_name, &msg);
 
-    std::cout << "[INFO] Servo angles: [ "; 
-    for (int channel = 0; channel < _num_channels-1; channel++) {
-        std::cout << msg.position[channel] << ", "; 
+    // --- FORMATTED PRINTING LOGIC ---
+    std::cout << "[INFO] Servo [raw, angles]: [ "; 
+    
+    // Lock the stream to standard decimal notation and set decimal places
+    std::cout << std::fixed << std::setprecision(2); 
+
+    for (int i = 0; i < _num_channels; i++) {
+        // Print the pair: [raw, angle]
+        // setw(3) for 8-bit ADC (0-255), setw(7) for the formatted float
+        std::cout << "[" << std::setw(3) << raw_adcs[i] << ", " 
+                  << std::setw(7) << (msg.angles[i] * 180.0f / M_PI) << "]";
+        
+        // Add a comma for all items except the last one
+        if (i < _num_channels - 1) {
+            std::cout << ", "; 
+        }
     } 
-    std::cout << msg.position[_num_channels-1] << " ]" << std::endl << std::flush; 
+    std::cout << " ]" << std::endl;
+
 }
 
-// double ServoStateReader::_mapRawToAngle(int raw) {
-//     // Constrain raw value to calibration limits
-//     if (raw < RAW_MIN) raw = RAW_MIN;
-//     if (raw > RAW_MAX) raw = RAW_MAX;
+double ServoStateReader::_mapRawToAngle(int raw, int raw_down, int raw_up, double ang_down_rad, double ang_up_rad) {
+    // Constrain to the calibrated range (handles inverted channels naturally)
+    // int lo = std::min(raw_down, raw_up);
+    // int hi = std::max(raw_down, raw_up);
+    // raw = std::max(lo, std::min(hi, raw));
 
-//     // Linear map to double
-//     return (double)(raw - RAW_MIN) * (ANG_MAX - ANG_MIN) / (double)(RAW_MAX - RAW_MIN) + ANG_MIN;
-// }
-
-double ServoStateReader::_mapRawToAngle(int raw, int raw_down, int raw_up) {
-    // Constrain to the calibrated range (handle inverted channels naturally)
-    int lo = std::min(raw_down, raw_up);
-    int hi = std::max(raw_down, raw_up);
-    raw = std::max(lo, std::min(hi, raw));
-
-    // Linear interpolation: raw_down -> 0 deg, raw_up -> 180 deg
-    return (double)(raw - raw_down) / (double)(raw_up - raw_down) * 180.0;
+    // Linear interpolation: raw_down -> ang_down_rad, raw_up -> ang_up_rad
+    // Outputs radians with 0 = horizontal, positive = above, negative = below.
+    return (double)(raw - raw_down) / (double)(raw_up - raw_down) * (ang_up_rad - ang_down_rad) + ang_down_rad;
 }

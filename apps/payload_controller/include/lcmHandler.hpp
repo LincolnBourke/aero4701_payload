@@ -8,6 +8,7 @@ Handles LCM messaging for the payload controller node.
 #include "run_command_t.hpp"
 #include "save_complete_t.hpp"
 #include "switch_state_t.hpp"
+#include "true_servo_angles_t.hpp"
 
 #include <lcm/lcm-cpp.hpp>
 #include <string.h>
@@ -26,6 +27,9 @@ class LcmHandler
         bool switch_state_received;
         bool all_switched; 
 
+        payload_messages::true_servo_angles_t last_servo_angs_msg;
+        bool servo_angs_received;
+
     public:
         LcmHandler();
         ~LcmHandler();
@@ -43,10 +47,16 @@ class LcmHandler
             const std::string& channel,
             const payload_messages::switch_state_t* msg);
 
+        void handleServoStateMsg(const lcm::ReceiveBuffer* rbuf,
+            const std::string& channel, 
+            const payload_messages::true_servo_angles_t* msg);
+
         // Returns true if a message was received and stores the id
         bool checkRunCommand(int& command_id);
         bool checkSaveComplete(int& return_id);
-        bool checkSwitchState( int (&switch_states)[3], bool &all_flag ); 
+        bool checkSwitchState( int (&switch_states)[3], bool &all_flag );
+        bool checkServoAngs( float (&servo_angs)[6] ); 
+
 };
 
 #endif

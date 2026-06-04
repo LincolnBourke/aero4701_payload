@@ -16,6 +16,9 @@
 #include <vector>
 #include <chrono>
 #include <unistd.h>
+#include <cmath>
+#include <iostream>
+#include <iomanip>
 
 // Define a trajectory
 typedef struct {
@@ -48,6 +51,9 @@ class PayloadController
         // LCM interface
         lcm::LCM lcm;
         LcmHandler lcm_handler;
+
+        // Tolerance accepted before moving to next target pose 
+        float tol; 
 
         // Error processed by the ERROR state
         payload_error_t error;
@@ -105,6 +111,9 @@ class PayloadController
         // Block until a save_complete message is received from the camera node.
         // Return value indicates if the save was successful.
         bool waitForSaveComplete();
+
+        // Block until the platform has reached the target pose with some tolerance 
+        bool waitForPose(const long int timeout); 
 
         // --- State methods ---------------------------------------------------
         state_t handleIdleState();

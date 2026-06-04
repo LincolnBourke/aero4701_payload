@@ -6,35 +6,39 @@
 #ifndef SERVO_STATE_READER_H
 #define SERVO_STATE_READER_H
 
+#include <cmath>
 #include <string>
+#include <iomanip> // Required for formatting
+#include <vector>
 #include <lcm/lcm-cpp.hpp>
-#include "payload_messages/servo_angs.hpp"
+#include "true_servo_angles_t.hpp"
 
 /*
 
+channel 0: 
+    up: 104
+    zero adc value: 217
+
 channel 1: 
-    down: 255
-    up: 93
+    up: 252
+    zero adc value: 150
 
 channel 2: 
-    down: 42
-    up: 255
+    up: 100
+    zero adc value: 210
 
 channel 3: 
-    down: 255
-    up: 94
+    up: 248
+    zero adc value: 129
 
 channel 4: 
-    down: 40
-    up: 240 
+    up: 97
+    zero adc value: 206
 
 channel 5: 
-    down: 255
-    up: 90
+    up: 249
+    zero adc value: 145
 
-channel 6: 
-    down: 40
-    up: 240
 */
 
 class ServoStateReader
@@ -48,28 +52,32 @@ class ServoStateReader
 
     private:
         struct ChannelCalibration {
-            int raw_down;   // ADC value at 0 degrees (fully down)
-            int raw_up;     // ADC value at 180 degrees (fully up)
+            int    raw_down;    // ADC value when servo arm is at ang_down_rad
+            int    raw_up;      // ADC value when servo arm is at ang_up_rad
+            double ang_down_rad; // Physical angle (rad) at raw_down: 0=horizontal, +ve=above
+            double ang_up_rad;   // Physical angle (rad) at raw_up
         };
 
-        // One entry per channel, from your calibration comments
+        // const ChannelCalibration _cal[6] = {
+        //     { 217, 104, 0,  M_PI/2},  // ch5 (inverted ADC)
+        //     { 150, 252, 0,  M_PI/2},  // ch4
+        //     { 210, 100, 0,  M_PI/2},  // ch3 (inverted ADC)
+        //     { 129, 248, 0,  M_PI/2},  // ch2
+        //     { 206, 97, 0,  M_PI/2},  // ch1 (inverted ADC)
+        //     { 145, 249, 0,  M_PI/2},  // ch0
+        // };
         const ChannelCalibration _cal[6] = {
-            { 40, 240},  // ch6: down=40,  up=240
-            {255,  90},  // ch5: down=255, up=90  (inverted)
-            { 40, 240},  // ch4: down=40,  up=240
-            {255,  94},  // ch3: down=255, up=94  (inverted)
-            { 42, 255},  // ch2: down=42,  up=255
-            {255,  93},  // ch1: down=255, up=93  (inverted)
+            { 145, 249, 0, M_PI/2},  // ch0
+            { 206,  97, 0, M_PI/2},  // ch1 (inverted ADC)
+            { 129, 248, 0, M_PI/2},  // ch2
+            { 210, 100, 0, M_PI/2},  // ch3 (inverted ADC)
+            { 150, 252, 0, M_PI/2},  // ch4
+            { 217, 104, 0, M_PI/2},  // ch5 (inverted ADC)
         };
 
-        // Maps an 8-bit ADC reading to an angle in degrees using calibration limits.
-        double _mapRawToAngle(int raw, int raw_down, int raw_up); // now takes limits
 
-        // // Calibration limits for the ADC-to-angle mapping.
-        // const int RAW_MIN = 0;
-        // const int RAW_MAX = 128;
-        // const double ANG_MIN = 0.0;
-        // const double ANG_MAX = 180.0;
+        // Maps an 8-bit ADC reading to an angle in radians (0=horizontal, +ve=above).
+        double _mapRawToAngle(int raw, int raw_down, int raw_up, double ang_down_rad, double ang_up_rad);
 
         // Path to the I2C bus device file.
         const char* _bus_path = "/dev/i2c-1";

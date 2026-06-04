@@ -12,15 +12,15 @@
 #define CALIBRATION_END_POINT_STEP 1000 // ms
 #define CALIBRATION_STRUCT_STEP 20 // ms
 #define CALIBRATION_START_Z 15 // mm
-#define CALIBRATION_END_Z 2 // mm
+#define CALIBRATION_END_Z 0 // mm
 
 // Angle of the servos when switches activated 
     // Obtained from CAD 
 constexpr float PHYSICAL_ANGLE_AT_ACTIVATION = -41.58f * M_PI / 180.0f;
 
 PayloadController::PayloadController()
-    : lcm(), lcm_handler(), error(), platform(), 
-      trajectory_step(0), experiment_start_time()
+    : lcm(), lcm_handler(), tol(5*M_PI/180), // tolerance of 5 degs  
+     error(), platform(), trajectory_step(0), experiment_start_time()
 {
     trajectory_path = TRAJECTORY_FILE_PATH;
 
@@ -33,6 +33,7 @@ PayloadController::PayloadController()
     lcm.subscribe("RUN_COMMAND", &LcmHandler::handleRunCommand, &lcm_handler);
     lcm.subscribe("SAVE_COMPLETE", &LcmHandler::handleSaveComplete, &lcm_handler);
     lcm.subscribe("LIMIT_SWITCH_STATES", &LcmHandler::handleSwitchStateMsg, &lcm_handler);
+    lcm.subscribe("SERVO_STATE", &LcmHandler::handleServoStateMsg, &lcm_handler);
 };
 
 PayloadController::~PayloadController(){};
@@ -149,7 +150,6 @@ state_t PayloadController::handleCalibrateServosState()
 
         // bool result;
         bool all_flag; // If all switches have been tripped 
-        lcm_handler.checkSwitchState(switch_states, all_flag); 
         auto result = lcm_handler.checkSwitchState(switch_states, all_flag); 
 
         printf("[INFO] Checked switch state, result %d, states [%d, %d, %d]\n:",
@@ -165,7 +165,7 @@ state_t PayloadController::handleCalibrateServosState()
             std::cout << "]" << std::endl; 
 
             // If all activated, stop 
-            if ( all_flag )
+            if ( all_flag )  
             {
                 switches_activated = true; 
                 break; 
@@ -179,11 +179,17 @@ state_t PayloadController::handleCalibrateServosState()
             std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
             return ERROR;
         }
+        else 
+        {
+            // Wait for it to reach correct pose 
+            long int timeout = 10000; // ms = 10s 
+            waitForPose(timeout); 
+        }
         std::cout << "Target position: " << calibration_trajectory.poses[i].position.transpose() << std::endl;
 
         // 20ms = 50Hz, matches servo PWM update rate 
         // usleep(20000); 
-        usleep(100000); 
+        usleep(50000); 
     }
     
     // Set calibration offset for the Stewart platform
@@ -191,13 +197,22 @@ state_t PayloadController::handleCalibrateServosState()
     {
         // At switch activation, physical servo angle is known to be -41.58 deg.
         // Offset = physical - commanded, applied in publishServoTargets().
-        const auto& commanded = platform.getServoTargets();
+        float servo_angs[6] = {0};
         std::array<float, NUM_SERVOS> offsets;
-        std::cout << "Commanded: " << commanded[0] * 180/M_PI << " " << commanded[1] * 180/M_PI << std::endl; 
 
-        for (int i = 0; i < NUM_SERVOS; i++)
-            offsets[i] = PHYSICAL_ANGLE_AT_ACTIVATION - commanded[i];
+        lcm.handleTimeout(10);
+        if ( lcm_handler.checkServoAngs(servo_angs) ) {
 
+            // Find the calibration offsets 
+            for (int i = 0; i < NUM_SERVOS; i++)
+                // Offset in radians 
+                offsets[i] = PHYSICAL_ANGLE_AT_ACTIVATION - servo_angs[i] * M_PI / 180.0f; 
+        }
+        else {
+            std::cout << "[WARNING] Failed to get calibration angles" << std::endl << std::flush; 
+        }
+
+        // Set the offsets (defaults to zero)
         platform.setCalibrationOffsets(offsets); 
         std::cout << "[INFO] Calibration offsets set." << std::endl;
 
@@ -668,6 +683,115 @@ void PayloadController::printTrajectory()
         std::cout << "]" << std::endl;
     }
 };
+
+bool PayloadController::waitForPose(const long int timeout)
+{
+    const auto& commanded = platform.getServoTargets(); 
+    float servo_angs[6] = {0}; 
+
+    auto start_time = std::chrono::steady_clock::now();
+    
+    // Setup a throttle for the print statements (e.g., print every 500ms)
+    auto last_print_time = start_time;
+    const auto print_interval = std::chrono::milliseconds(500); 
+
+    std::cout << "[INFO] Waiting to reach target pose..." << std::endl; 
+
+    while (true) 
+    {
+        lcm.handleTimeout(0);
+        if (lcm_handler.checkServoAngs(servo_angs)) {
+            
+            auto current_time = std::chrono::steady_clock::now();
+            
+            // --- PRINT ERRORS AT THROTTLED INTERVAL ---
+            if (current_time - last_print_time >= print_interval) {
+                std::cout << "[INFO] Errors: [ ";
+                std::cout << std::fixed << std::setprecision(3); // Lock formatting 
+                
+                for (int i = 0; i < 6; ++i) {
+                    float error = commanded[i] - servo_angs[i]*M_PI/180.0f; 
+                    std::cout << std::setw(7) << error*180.0f/M_PI;
+                    if (i < 5) std::cout << ", ";
+                }
+                std::cout << " ]" << std::endl;
+                
+                last_print_time = current_time; // Reset the print timer
+            }
+            // ------------------------------------------
+
+            bool all_within_tol = true;
+            
+            for (int i = 0; i < 6; ++i) {
+                if ( std::abs(commanded[i] - servo_angs[i]) > tol ) {
+                    all_within_tol = false;
+                    break; // Keep the early exit for the tolerance check!
+                }
+            }
+
+            if (all_within_tol) {
+                std::cout << "[INFO] Target pose reached." << std::endl;
+                return true;
+            }
+        }
+        
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - start_time
+        ).count();
+
+        if (elapsed >= timeout) {
+            std::cout << "[WARN] waitForPose timed out!" << std::endl;
+            return false; 
+        }
+
+        usleep(1000);
+    }
+}
+
+// bool PayloadController::waitForPose(const long int timeout)
+// {
+//     const auto& commanded = platform.getServoTargets(); 
+//     float servo_angs[6] = {0}; 
+
+//     // Record the starting time point
+//     auto start_time = std::chrono::steady_clock::now();
+
+//     // Setup a throttle for the print statements (e.g., print every 500ms)
+//     auto last_print_time = start_time;
+//     const auto print_interval = std::chrono::milliseconds(500); 
+
+//     std::cout << "[INFO] Waiting to reach target pose..." << std::endl;    
+    
+//     while (true) 
+//     {
+//         lcm.handleTimeout(0);
+//         if (lcm_handler.checkServoAngs(servo_angs)) {
+//             bool all_within_tol = true;
+            
+//             for (int i = 0; i < 6; ++i) {
+//                 if (std::abs(commanded[i] - servo_angs[i]) > tol) {
+//                     all_within_tol = false;
+//                     break; 
+//                 }
+//             }
+
+//             if (all_within_tol) return true;
+//         }
+        
+//         // Calculate elapsed time in milliseconds
+//         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+//             std::chrono::steady_clock::now() - start_time
+//         ).count();
+
+//         // Exit if we've exceeded the specified timeout
+//         if (elapsed >= timeout) {
+//             return false; // Timed out before reaching targets
+//         }
+
+//         // Small sleep (1000 microseconds = 1 millisecond)
+//         usleep(1000);
+//     }
+// }
 
 // --- LCM publisher methods ---------------------------------------------------
 
