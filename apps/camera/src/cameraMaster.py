@@ -32,6 +32,7 @@ class PayloadState(IntEnum):
     SAVE_RESULTS         = 6
     TERMINATE_RUN        = 7
     ERROR                = 8
+    DEBUG                = 9
 
 # typedef enum State {
 #     IDLE,               // Waits for command to start an experiment
@@ -90,6 +91,7 @@ class Camera:
             PayloadState.SAVE_RESULTS:      self.handle_save_results,
             PayloadState.TERMINATE_RUN:     self.handle_terminate_run,
             PayloadState.ERROR:             self.handle_error,
+            PayloadState.DEBUG:             self.handle_debug,
             PayloadState.IDLE:              None,
             PayloadState.READ_TRAJECTORY:   None,
             PayloadState.CALIBRATE_SERVOS:  None,
@@ -160,14 +162,6 @@ class Camera:
                 if picam2_ is not None:
                     picam2_ = h.close_camera(picam2_)
                 continue
-
-            # ~ images = glob.glob("outputs/calibration/*.jpeg")
-            # ~ if len(images) < 5:
-                # ~ print("Not enough frames, retrying...\n")
-                # ~ CALIB_ATTEMPTS += 1
-                # ~ if picam2_ is not None:
-                    # ~ picam2_ = h.close_camera(picam2_)
-                # ~ continue
 
             # Detect chessboards
             # objpoints, imgpoints, img_size = h.detect_cboard_calib(images, self.ROIS, save_debug_images=SAVE_DEBUG_IMAGES)
@@ -298,7 +292,31 @@ class Camera:
             h.close_camera(self.picam2)
             self.picam2 = None
 
+    def handle_debug(self):
+        """
+        DEBUG: Focus camera and save debug image.
+        """
+        
+        print("[INFO] STATE: DEBUG\n")
 
+        # Read parameters in from file
+        self.params = h.prep_pi_cam_params(camera_file=CAMERA_SETTINGS_PATH)
+
+        # TODO check debug save file path
+
+        # Open camera, set focus and take debug image
+        picam2_ = h.open_picam(self.params, picam2_, debug_mode=True, output_dir="data/test_obc_debug")
+        if picam2_ is None:
+            print("[WARN] Camera opening and focus failed\n")
+            lcm_h.publish_cam_msg(cam_status=False)
+
+        # Otherwise (success case) close camera and publish success
+        if picam2_ is not None:
+            h.close_camera(picam2_)
+
+        # Publish calibration status to payload controller
+        lcm_h.publish_cam_msg(cam_status=True)
+        
 ## MAIN
 
 print("Starting camera program...")

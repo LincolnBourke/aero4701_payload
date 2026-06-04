@@ -35,6 +35,7 @@ typedef enum State {
     SAVE_RESULTS,       // Saves experiment data and tells the camera node to do the same
     TERMINATE_RUN,      // Moves the platform back to the home position 
     ERROR,              // Publishes an erroneous run result
+    DEBUG,              // Focus camera and take a debug test image
 } state_t;
 
 // Define the error processed by the ERROR state
@@ -120,6 +121,7 @@ class PayloadController
         state_t handleSaveResultsState();
         state_t handleTerminateRunState();
         state_t handleErrorState();
+        state_t handleDebugState();
 
         // --- LCM publisher methods -------------------------------------------
         void publishCameraCommand(state_t state, bool debug_mode);
