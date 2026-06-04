@@ -205,7 +205,22 @@ Expected: no difference (JPEG is transmitted as raw bytes with no conversion).
 ## Camera-Payload Controller Tests
 
 ### From Terminal
+(need to confirm these commands)
 
+Start camera mode (cameraMaster):
+
+```bash
+source ~/.bashrc 
+cd aero4701_payload/
+source venv/bin/activate
+python3 apps/camera/src/cameraMaster.py
+```
+
+Start controller mode (cameraPayloadController) (remember to cmake after editing):
+
+```bash
+./build/apps/payload_controller/camera_payload_controller
+```
 
 
 ### From Startup 
@@ -213,21 +228,23 @@ testapp_service is configured to call cameraMaster.py and cameraPayloadControlle
 
 To avoid overwriting results on subsequent startups, it reads and increments a counter from boot_count.txt on the compute module, to save results in outputs/boot_0XX. 
 
-Check on status of system
-
-<!-- All apps are run from the root directory.
-
-C++ apps are run from an entry point with the same name as the app:  
+Check on status of service:
 
 ```bash
-./build/apps/<app_name>/<app_name>
+INSERT
 ```
 
-Python apps may have a different entry point name and are not located in build/:
+Stop service:
 
-```bash 
-python apps/<app_name>/<entry_point>.py
-``` -->
+```bash
+INSERT
+```
+
+Start service (to check without boot):
+
+```bash
+INSERT
+```
 
 
 
