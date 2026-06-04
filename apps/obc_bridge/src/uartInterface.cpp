@@ -6,7 +6,7 @@
 #include <chrono>
 #include <cstring>
 
-#define UART_FILE "/dev/pts/3"
+#define UART_FILE "/dev/pts/5"
 #define BAUD_RATE B115200
 
 UartInterface::UartInterface() {};
