@@ -1,5 +1,6 @@
 build/*
-data/*
+data/angles.csv
+data/point_cloud.csv
 lcm_messages/payload_messages/*
 .vscode/settings.json
 outputs/
