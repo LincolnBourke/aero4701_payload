@@ -6,7 +6,9 @@
 #include <chrono>
 #include <cstring>
 
-#define UART_FILE "/dev/pts/3"
+#define UART_FILE "/dev/pts/7"      // change for testing depending on socat virtual port
+// #define UART_FILE "/dev/serial0"    // Should point to the active UART
+// #define UART_FILE "/dev/ttyAMA0"    // GPIO header (pin 14 tx, pin 15 rx)
 #define BAUD_RATE B115200
 
 UartInterface::UartInterface() {};
