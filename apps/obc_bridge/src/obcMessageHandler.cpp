@@ -380,17 +380,63 @@ bool ObcMessageHandler::serialiseResults(std::string file_path)
 
 bool ObcMessageHandler::serialiseDebugResults(std::string file_path)
 {
-    // Open the CSV file and verify it is accessible
-    std::ifstream file(file_path);
+    // Open the JPEG file in binary mode and verify it is accessible
+    std::ifstream file(file_path, std::ios::binary);
     if (!file.is_open())
     {
-        std::cout << "[ERROR] Could not open file when serialising results." << std::endl;
+        std::cout << "[ERROR] Could not open debug results file when serialising." << std::endl;
         return false;
     }
 
-    // TODO: read debug results file
-
+    // Read all raw bytes into a buffer
+    std::vector<uint8_t> jpeg_bytes(
+        (std::istreambuf_iterator<char>(file)),
+        std::istreambuf_iterator<char>()
+    );
     file.close();
 
-    return false; // TODO: update
+    // Pack bytes into UART messages with a 2-byte packet index prefix, same as serialiseResults()
+    UART_msg_t msg = {};
+    uint16_t num_msgs = 0;
+    std::memcpy(&msg.payload[0], &num_msgs, sizeof(uint16_t));
+    msg.length = sizeof(uint16_t);
+
+    for (uint8_t byte : jpeg_bytes)
+    {
+        // If the message is full, push it and start a new one
+        if (msg.length + sizeof(uint8_t) > RX_BUFFER_BYTES)
+        {
+            msg.sof = UART_SOF;
+            msg.id  = PYLD_PACKET_ID;
+            transmit_queue.push(msg);
+            num_msgs++;
+
+            msg = {};
+            std::memcpy(&msg.payload[0], &num_msgs, sizeof(uint16_t));
+            msg.length = sizeof(uint16_t);
+        }
+
+        msg.payload[msg.length] = byte;
+        msg.length += sizeof(uint8_t);
+    }
+
+    // Push the final partial message if it contains more than just the index header
+    if (msg.length > sizeof(uint16_t))
+    {
+        msg.sof = UART_SOF;
+        msg.id  = PYLD_PACKET_ID;
+        transmit_queue.push(msg);
+        num_msgs++;
+    }
+
+    // Create a header message based on the number of packets added to the queue
+    results_header = {};
+    results_header.sof = UART_SOF;
+    results_header.id  = PYLD_TRANSFER_HEADER_ID;
+    std::memcpy(&results_header.payload[0], &num_msgs, sizeof(uint16_t));
+    results_header.length = sizeof(uint16_t);
+
+    std::cout << "[INFO] Serialised " << jpeg_bytes.size() << " bytes from '"
+              << file_path << "' into " << num_msgs << " packets." << std::endl;
+    return true;
 }

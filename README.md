@@ -146,5 +146,59 @@ diff data/test_obc_nominal/results.csv data/test_obc_nominal/results_received.cs
 
 Values may differ in the last decimal place due to float32 quantisation; all differences should be smaller than `0.000001`.
 
+---
+
+### Debug Mode Tests
+
+These tests validate the debug path: the OBC triggers debug mode on the payload and the payload transmits a JPEG image back. The same socat setup and `#define UART_FILE` / rebuild steps apply.
+
+Test image: `data/test_obc_debug/debug_mode_focus.jpeg`
+
+---
+
+#### Test 4 — Payload sends debug JPEG to OBC (`send-debug-results`)
+
+Tests the outbound debug path in isolation: payload serialises the debug JPEG and sends it to the OBC.
+
+**Terminal 1 (payload):**
+```bash
+./build/apps/obc_bridge/test_obc_comms send-debug-results
+```
+
+**Terminal 2 (OBC):**
+```bash
+python3 apps/obc_bridge/tests/obc_receive_jpeg.py /dev/pts/4 [output_jpeg]
+```
+
+---
+
+#### Test 5 — Full debug round loop (`debug-roundloop`)
+
+Tests both directions of the debug path: OBC sends an enter-debug command, payload acknowledges and simulates debug work, then sends the debug JPEG back to the OBC. Both terminals must be started at roughly the same time.
+
+**Terminal 1 (payload):**
+```bash
+./build/apps/obc_bridge/test_obc_comms debug-roundloop [wait_seconds]
+```
+
+**Terminal 2 (OBC):**
+```bash
+python3 apps/obc_bridge/tests/obc_roundloop_debug.py /dev/pts/4 [output_jpeg] [wait_seconds]
+```
+
+The `wait_seconds` argument must match between the two terminals (default: 5).
+
+---
+
+#### Verification (Tests 4 and 5)
+
+Compare the received JPEG against the original to verify exact round-trip fidelity:
+
+```bash
+diff data/test_obc_debug/debug_mode_focus.jpeg data/test_obc_debug/debug_mode_focus_received.jpeg
+```
+
+Expected: no difference (JPEG is transmitted as raw bytes with no conversion).
+
 ## Notes
 Zero angles: [ 90.00, 180.00, 79.71, 180.00, 97.71, 180.00 ] 

@@ -6,8 +6,10 @@
 
 // Time to wait for an acknowledgement before repeating a message sent over UART
 #define WAIT_ACK_TIMEOUT 1000 // ms
-#define RESULTS_FILEPATH "data/test_obc_nominal/results.csv"
-#define DEBUG_RESULTS_FILEPATH ""
+#define RESULTS_FILEPATH        "data/test_obc_nominal/results.csv"
+#define DEBUG_RESULTS_FILEPATH  "data/test_obc_debug/debug_mode_focus.jpeg"
+#define DEBUG_IMAGE_WIDTH       640
+#define DEBUG_IMAGE_HEIGHT      480
 #define TRAJECTORY_SETTINGS_FILEPATH "data/test_obc_nominal/trajectory_settings.csv"
 #define SCALAR_SETTINGS_FILEPATH "data/test_obc_nominal/scalar_settings.csv"
 
@@ -203,16 +205,31 @@ ObcBridgeState ObcBridge::handleDoExperimentState()
 
 ObcBridgeState ObcBridge::handleTransmitResultState()
 {
-    TransmitResultState state = TransmitResultState::REQUEST_TRANSFER;
-    float ack_timeout = ACK_TIMEOUT;
-    bool transmit_success;
-
-    // Read and serialise the results before entering state machine
+    // Serialise results CSV into the transmit queue before entering the state machine
     if (!obc_messager.serialiseResults(RESULTS_FILEPATH))
     {
         std::cout << "[ERROR] Failed to serialise results file." << std::endl;
         return ObcBridgeState::IDLE;
     }
+    return runTransmitStateMachine();
+}
+
+ObcBridgeState ObcBridge::handleTransmitDebugResultsState()
+{
+    // Serialise debug JPEG into the transmit queue before entering the state machine
+    if (!obc_messager.serialiseDebugResults(DEBUG_RESULTS_FILEPATH))
+    {
+        std::cout << "[ERROR] Failed to serialise debug results file." << std::endl;
+        return ObcBridgeState::IDLE;
+    }
+    return runTransmitStateMachine();
+}
+
+ObcBridgeState ObcBridge::runTransmitStateMachine()
+{
+    TransmitResultState state = TransmitResultState::REQUEST_TRANSFER;
+    float ack_timeout = ACK_TIMEOUT;
+    bool transmit_success;
 
     while (true)
     {
@@ -280,7 +297,8 @@ ObcBridgeState ObcBridge::handleTransmitResultState()
                 }
                 else if (readTime() > ack_timeout)
                 {
-                    obc_messager.transmitLastResultsPacket(); // retry the transmission
+                    // Retry the last packet
+                    obc_messager.transmitLastResultsPacket();
                     startTimer();
                 }
                 break;
@@ -308,7 +326,7 @@ ObcBridgeState ObcBridge::handleTransmitResultState()
         }
     }
 
-    return ObcBridgeState::TRANSMIT_EXPERIMENT_RESULTS; // should never reach this line
+    return ObcBridgeState::IDLE; // should never reach this line
 }
 
 ObcBridgeState ObcBridge::handleTransmitErrorState()
@@ -323,11 +341,6 @@ ObcBridgeState ObcBridge::handleDebugState()
     return ObcBridgeState::DEBUG;
 }
 
-ObcBridgeState ObcBridge::handleTransmitDebugResultsState()
-{
-    // TODO: need to implement debug functionality for payload controller
-    return ObcBridgeState::TRANSMIT_DEBUG_RESULTS;
-}
 
 // --- Timer -------------------------------------------------------------------
 

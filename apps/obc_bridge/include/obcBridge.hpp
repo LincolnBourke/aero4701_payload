@@ -82,6 +82,10 @@ class ObcBridge
         ObcBridgeState handleDebugState();
         ObcBridgeState handleTransmitDebugResultsState();
 
+        // Shared UART file transfer state machine used by both transmit result states.
+        // Assumes transmit_queue and results_header are already populated by a serialise call.
+        ObcBridgeState runTransmitStateMachine();
+
     public: 
         // Setup UART port 
         ObcBridge();
