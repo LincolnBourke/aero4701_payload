@@ -76,7 +76,10 @@ void LcmHandler::handleSwitchStateMsg(const lcm::ReceiveBuffer* rbuf,
         static_cast<int>(msg->switch2),
         static_cast<int>(msg->switch3) 
     };
-    if (switch_states[0] && switch_states[1] && switch_states[2])
+
+    // Activate if any triggered 
+    if (switch_states[0] || switch_states[1] || switch_states[2])
+    // if (switch_states[0] && switch_states[1] && switch_states[2])
     {
         all_switched = true; // Latch until read 
     }

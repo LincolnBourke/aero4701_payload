@@ -69,8 +69,9 @@ class PayloadController
         // The step number which trackTrajectoryStep is up to
         std::vector<float>::size_type trajectory_step;
 
-        // The time for which the experiment has been running
+        // The time for which the experiment or servo calibration procedure has been running
         std::chrono::time_point<std::chrono::steady_clock> experiment_start_time;
+        std::chrono::time_point<std::chrono::steady_clock> calibration_start_time;
 
         // Reads raw poses from the trajectory file into raw_poses.
         // Return value indicates if the file was found and read successfully.

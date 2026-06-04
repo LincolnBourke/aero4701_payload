@@ -7,11 +7,11 @@
 
 #define TRAJECTORY_FILE_STEP 1000 // ms, time between successive poses in the trajectory file
 #define TRAJECTORY_STRUCT_STEP 250 // ms, time between successive poses in the trajectory struct
-#define TRAJECTORY_FILE_PATH "data/trajectory_simple.csv"
+#define TRAJECTORY_FILE_PATH "data/trajectory.csv"
 
-#define CALIBRATION_END_POINT_STEP 1000 // ms
-#define CALIBRATION_STRUCT_STEP 20 // ms
-#define CALIBRATION_START_Z 15 // mm
+#define CALIBRATION_END_POINT_STEP 5000 // ms
+#define CALIBRATION_STRUCT_STEP 50 // ms
+#define CALIBRATION_START_Z 5 // mm
 #define CALIBRATION_END_Z 0 // mm
 
 // Angle of the servos when switches activated 
@@ -34,6 +34,9 @@ PayloadController::PayloadController()
     lcm.subscribe("SAVE_COMPLETE", &LcmHandler::handleSaveComplete, &lcm_handler);
     lcm.subscribe("LIMIT_SWITCH_STATES", &LcmHandler::handleSwitchStateMsg, &lcm_handler);
     lcm.subscribe("SERVO_STATE", &LcmHandler::handleServoStateMsg, &lcm_handler);
+
+    // Clear LCM messages 
+    while (lcm.handleTimeout(0) == 1); 
 };
 
 PayloadController::~PayloadController(){};
@@ -139,14 +142,48 @@ state_t PayloadController::handleCalibrateServosState()
         return ERROR;
     }
 
+    // Start timing calibration 
+    calibration_start_time = std::chrono::steady_clock::now();
+
     // Lower platform along trajectory until limit switches activate 
     int switch_states[3] = {0}; 
     bool switches_activated = false; 
 
-    for (size_t i = 0; i < calibration_trajectory.times.size(); i++)
+    // for (size_t i = 0; i < calibration_trajectory.times.size(); i++)
+    size_t i = 0;
+    while (true)
     {   
+        if (i == calibration_trajectory.times.size())
+        {
+            // Exit when finished trajectory
+            break;
+        }
+
+        // Get the current time since calibration began 
+        std::chrono::duration<double> time_temp = std::chrono::steady_clock::now() - calibration_start_time;
+        double calibration_time = std::chrono::duration<double, std::milli>(time_temp).count();
+
+        // Move platform along trajectory
+        if (calibration_time >= calibration_trajectory.times[i])
+        {
+            if ( platform.moveTo(calibration_trajectory.poses[i]) == false )
+            {
+                error.msg = "Could not move platform to starting pose during servo calibration.";
+                std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+                return ERROR;
+            }
+            // else 
+            // {
+            //     // Wait for it to reach correct pose 
+            //     long int timeout = 10000; // ms = 10s 
+            //     waitForPose(timeout); 
+            // }
+            std::cout << "Target position: " << calibration_trajectory.poses[i].position.transpose() << std::endl;
+            i++;
+        }        
+
         // Check if the limit switches have activated
-        lcm.handleTimeout(0);
+        while (lcm.handleTimeout(0) == 1) {};
 
         // bool result;
         bool all_flag; // If all switches have been tripped 
@@ -171,28 +208,13 @@ state_t PayloadController::handleCalibrateServosState()
                 break; 
             }
         }
-
-        // Move platform along trajectory
-        if ( platform.moveTo(calibration_trajectory.poses[i]) == false )
-        {
-            error.msg = "Could not move platform to starting pose during servo calibration.";
-            std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
-            return ERROR;
-        }
-        else 
-        {
-            // Wait for it to reach correct pose 
-            long int timeout = 10000; // ms = 10s 
-            waitForPose(timeout); 
-        }
-        std::cout << "Target position: " << calibration_trajectory.poses[i].position.transpose() << std::endl;
-
         // 20ms = 50Hz, matches servo PWM update rate 
         // usleep(20000); 
-        usleep(50000); 
+        // usleep(50000); 
     }
     
     // Set calibration offset for the Stewart platform
+    while (lcm.handleTimeout(0) == 1); 
     if (switches_activated)
     {
         // At switch activation, physical servo angle is known to be -41.58 deg.
@@ -206,7 +228,7 @@ state_t PayloadController::handleCalibrateServosState()
             // Find the calibration offsets 
             for (int i = 0; i < NUM_SERVOS; i++)
                 // Offset in radians 
-                offsets[i] = PHYSICAL_ANGLE_AT_ACTIVATION - servo_angs[i] * M_PI / 180.0f; 
+                offsets[i] = PHYSICAL_ANGLE_AT_ACTIVATION - servo_angs[i]; // * M_PI / 180.0f; 
         }
         else {
             std::cout << "[WARNING] Failed to get calibration angles" << std::endl << std::flush; 
@@ -215,13 +237,6 @@ state_t PayloadController::handleCalibrateServosState()
         // Set the offsets (defaults to zero)
         platform.setCalibrationOffsets(offsets); 
         std::cout << "[INFO] Calibration offsets set." << std::endl;
-
-        while (true) {
-            usleep(1000); 
-            // PlatformPose platform_pose; 
-            // platform_pose = platform.getPlatformPose(); 
-            // std::cout << "[INFO] Plaform z: " << platform_pose.position[2] << std::endl << std::flush; 
-        }
     }
     else 
     {
@@ -229,8 +244,6 @@ state_t PayloadController::handleCalibrateServosState()
         // std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
         // return ERROR;
     }
-
-    while (true) {};
 
     // Automatically transition to camera calibration when the servos are calibrated
     std::cout << "[INFO] Payload controller state set to CALIBRATE_CAMERA." << std::endl;
