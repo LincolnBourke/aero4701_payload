@@ -4,6 +4,8 @@ import time
 import shutil
 import os
 import glob
+import csv
+
 
 from picamera2 import Picamera2
 from libcamera import controls
@@ -622,7 +624,7 @@ def save_exp_video(picam2_, display_widget=False, save_debug_images=False, exp_t
         if frame_idx % WINDOW_SIZE == 0 and frame_idx > 0:
             hist_idx = frame_idx // WINDOW_SIZE
             if hist_idx < 150:
-                # ~ # 1 bit version to bin
+                # ~ # 1 bit version to bin (working)
                 # ~ hist_binary = (event_hist > 0).astype(np.uint8)
                 # ~ hist_packed = np.packbits(hist_binary, axis=None)
                 # ~ hist_records.append(hist_packed.tobytes())
@@ -689,7 +691,6 @@ def save_exp_video(picam2_, display_widget=False, save_debug_images=False, exp_t
                            # ~ baseline_folder="outputs/baseline",
                            # ~ pose_folder="outputs/baseline_pose",
                            # ~ save_debug_images=False):
-import csv
 
 def process_baseline_data(objpoints_3boards, mtx, dist, ROIS, CHESSBOARD=(5, 3),
                            baseline_folder="outputs/baseline",
@@ -698,22 +699,19 @@ def process_baseline_data(objpoints_3boards, mtx, dist, ROIS, CHESSBOARD=(5, 3),
                            results_dir="outputs/experiment_results"):
     print("Processing baseline frames")
     images = sorted(glob.glob(os.path.join(baseline_folder, "*.jpeg")))
-    print("Found images:", len(images))
+    # print("Found images:", len(images))
 
     criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
-    os.makedirs(pose_folder, exist_ok=True)
-
-    # results_dir = "outputs/experiment_results"
-    # os.makedirs(results_dir, exist_ok=True) # backup
-    # results_file = open(os.path.join(results_dir, "experiment_results.bin"), "ab")
     
-    # ~ os.makedirs(results_dir, exist_ok=True)
-    # ~ results_file = open(os.path.join(results_dir, "experiment_results.bin"), "ab")
-
+    os.makedirs(pose_folder, exist_ok=True)
     os.makedirs(results_dir, exist_ok=True)
     csv_path = os.path.join(results_dir, "experiment_results.csv")
-    results_csv = open(csv_path, "a", newline="")
-    results_writer = csv.writer(results_csv)
+    # results_csv = open(csv_path, "a", newline="")
+    # results_writer = csv.writer(results_csv)
+
+    # To store poses
+    all_tvecs = []
+    all_rvecs = []
     
     for fname in images:
         img  = cv.imread(fname)
@@ -721,6 +719,7 @@ def process_baseline_data(objpoints_3boards, mtx, dist, ROIS, CHESSBOARD=(5, 3),
         base = os.path.basename(fname)
         name, _ = os.path.splitext(base)
 
+        # To store 3 poses per image (bad naming convention)
         tvecs_all = []
         rvecs_all = []
 
@@ -754,25 +753,50 @@ def process_baseline_data(objpoints_3boards, mtx, dist, ROIS, CHESSBOARD=(5, 3),
                 if save_debug_images:
                     cv.drawChessboardCorners(img, CHESSBOARD, corners, ret)
 
-        if len(tvecs_all) == 0:
-            # print(f"[WARNING] {fname}: no boards detected, writing zeros.")
-            # results_file.write(struct.pack("<6f", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0))
-            results_writer.writerow([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-        else:
-            # if len(tvecs_all) < 3:
-                # print(f"[WARNING] {fname}: only {len(tvecs_all)}/3 boards detected.")
-            t_centre = np.mean(tvecs_all, axis=0)
-            r_centre = np.mean(rvecs_all, axis=0)
-            # ~ results_file.write(struct.pack("<6f", t_centre[0], t_centre[1], t_centre[2],
-                                                  # ~ r_centre[0], r_centre[1], r_centre[2]))
-            results_writer.writerow([t_centre[0], t_centre[1], t_centre[2],
-                         r_centre[0], r_centre[1], r_centre[2]])
+        # Write t then r to file
+        # if len(tvecs_all) == 0:
+        #     # print(f"[WARNING] {fname}: no boards detected, writing zeros.")
+        #     # results_file.write(struct.pack("<6f", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0))
+        #     results_writer.writerow([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        # else:
+        #     # if len(tvecs_all) < 3:
+        #         # print(f"[WARNING] {fname}: only {len(tvecs_all)}/3 boards detected.")
+        #     t_centre = np.mean(tvecs_all, axis=0)
+        #     r_centre = np.mean(rvecs_all, axis=0)
+        #     # ~ results_file.write(struct.pack("<6f", t_centre[0], t_centre[1], t_centre[2],
+        #                                           # ~ r_centre[0], r_centre[1], r_centre[2]))
+        #     results_writer.writerow([t_centre[0], t_centre[1], t_centre[2],
+        #                  r_centre[0], r_centre[1], r_centre[2]])
     
+        # Store t and r (to write out in block later)
+        if len(tvecs_all) == 0:
+            all_tvecs.append([0.0, 0.0, 0.0])
+            all_rvecs.append([0.0, 0.0, 0.0])
+        else:
+            all_tvecs.append(np.mean(tvecs_all, axis=0).tolist())
+            all_rvecs.append(np.mean(rvecs_all, axis=0).tolist())
+
         if save_debug_images:
             cv.imwrite(os.path.join(pose_folder, f"{name}_multi_pose.png"), img)
 
+    # For binary
     # ~ results_file.close()
-    results_csv.close()
+
+    # Write: all positions (tx,ty,tz) then all attitudes (rx,ry,rz), one frame per row
+    csv_path = os.path.join(results_dir, "experiment_results.csv")
+    with open(csv_path, "a", newline="") as f:
+        writer = csv.writer(f)
+        # writer.writerow(["# positions (tx,ty,tz)"])
+        for tvec in all_tvecs:
+            writer.writerow(tvec)
+        # writer.writerow(["# attitudes (rx,ry,rz)"])
+        for rvec in all_rvecs:
+            writer.writerow(rvec)
+    
+    print(f"[process_baseline_data] [INFO] Wrote {len(all_tvecs)} position and attitude records\n")
+
+    # For csv
+    # results_csv.close()
 
 
 # Save the experiment results
@@ -792,15 +816,26 @@ def save_exp_results(hist_records, results_dir="outputs/experiment_results"):
     
     # ~ print("[save_exp_results] [INFO] Experiment results saved\n")
     
-    print(f"[save_exp_results] [INFO] hist_records count: {len(hist_records)}")
-    if len(hist_records) > 0:
-        print(f"[save_exp_results] [INFO] First record shape: {hist_records[0].shape}, dtype: {hist_records[0].dtype}")
+    # Debugging
+    # print(f"[save_exp_results] [INFO] hist_records count: {len(hist_records)}")
+    # if len(hist_records) > 0:
+    #     print(f"[save_exp_results] [INFO] First record shape: {hist_records[0].shape}, dtype: {hist_records[0].dtype}")
     
+    # Write histogram to csv
+    csv_path = os.path.join(results_dir, "experiment_results.csv")
+    # with open(csv_path, "a", newline="") as f:
+    #     writer = csv.writer(f)
+    #     for record in hist_records:
+    #         writer.writerow(record.tolist())
+    # Write with hex encoding
     csv_path = os.path.join(results_dir, "experiment_results.csv")
     with open(csv_path, "a", newline="") as f:
         writer = csv.writer(f)
+        # writer.writerow(["# histograms (hex-encoded, one row per window)"])
         for record in hist_records:
-            writer.writerow(record.tolist())
+            # Pack bits then encode as hex string - compact single-column row
+            packed = np.packbits(record)
+            writer.writerow([packed.tobytes().hex()])
     print("[save_exp_results] [INFO] Experiment results saved\n")
     
 

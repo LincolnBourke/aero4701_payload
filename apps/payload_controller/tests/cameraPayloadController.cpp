@@ -329,7 +329,7 @@ state_t PayloadController::handleSaveResultsState()
         std::cout << "[ERROR] Failed to open results file." << std::endl;
         return ERROR;
     }
-    results_file << "tx,ty,tz,rx,ry,rz\n";
+    // results_file << "tx,ty,tz,rx,ry,rz\n";
     results_file << "0.0,0.0,0.0,0.0,0.0,0.0\n";
     results_file.close();
     
