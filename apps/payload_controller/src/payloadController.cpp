@@ -12,7 +12,7 @@
 #define CALIBRATION_END_POINT_STEP 1000 // ms
 #define CALIBRATION_STRUCT_STEP 20 // ms
 #define CALIBRATION_START_Z 15 // mm
-#define CALIBRATION_END_Z 2 // mm
+#define CALIBRATION_END_Z 0 // mm
 
 // Angle of the servos when switches activated 
     // Obtained from CAD 
@@ -165,11 +165,11 @@ state_t PayloadController::handleCalibrateServosState()
             std::cout << "]" << std::endl; 
 
             // If all activated, stop 
-            // if ( all_flag ) NOTE: COMMENTED OUT FOR DEBUGGING 
-            // {
-            //     switches_activated = true; 
-            //     break; 
-            // }
+            if ( all_flag )  
+            {
+                switches_activated = true; 
+                break; 
+            }
         }
 
         // Move platform along trajectory
@@ -179,12 +179,12 @@ state_t PayloadController::handleCalibrateServosState()
             std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
             return ERROR;
         }
-        // else 
-        // {
-        //     // Wait for it to reach correct pose 
-        //     long int timeout = 10000; // ms = 10s 
-        //     waitForPose(timeout); 
-        // }
+        else 
+        {
+            // Wait for it to reach correct pose 
+            long int timeout = 10000; // ms = 10s 
+            waitForPose(timeout); 
+        }
         std::cout << "Target position: " << calibration_trajectory.poses[i].position.transpose() << std::endl;
 
         // 20ms = 50Hz, matches servo PWM update rate 
@@ -710,7 +710,7 @@ bool PayloadController::waitForPose(const long int timeout)
                 std::cout << std::fixed << std::setprecision(3); // Lock formatting 
                 
                 for (int i = 0; i < 6; ++i) {
-                    float error = commanded[i] - servo_angs[i];
+                    float error = commanded[i] - servo_angs[i]*M_PI/180.0f; 
                     std::cout << std::setw(7) << error*180.0f/M_PI;
                     if (i < 5) std::cout << ", ";
                 }
