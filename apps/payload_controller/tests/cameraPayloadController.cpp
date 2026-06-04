@@ -14,6 +14,8 @@
 #define TRAJECTORY_FILE_STEP 500 // ms, time between successive poses in the trajectory file
 #define TRAJECTORY_STRUCT_STEP 250 // ms, time between successive poses in the trajectory struct
 #define TRAJECTORY_FILE_PATH "data/trajectory_simple.csv"
+#define RESULTS_FILEPATH        "data/test_obc_nominal/results.csv"
+
 
 static const char* CH_CONT_TO_CAM = "PAYLOAD_CAM";   // controller --> camera
 static const char* CH_CAM_TO_CONT = "CAM_PAYLOAD";   // camera --> controller
@@ -96,34 +98,33 @@ void PayloadController::run()
 
 state_t PayloadController::handleIdleState()
 {
-    int command_id; 
-    // Check if a run command has been published
-    lcm.handleTimeout(0);
-    if (lcm_handler.checkRunCommand(command_id))
-    {
-        // Only move to setup when start command received
-        if (command_id == Commands::RunId::RUN_CONTROLLER)
-        {
-            std::cout << "[INFO] Payload controller state set to READ_TRAJECTORY." << std::endl;
-            return READ_TRAJECTORY;
-        }
-        // Only move to setup when start command received
-        if (command_id == Commands::RunId::RUN_DEBUG)
-        {
-            std::cout << "[INFO] Payload controller state set to DEBUG." << std::endl;
-            return DEBUG;
-        }
-    }
+    //~ int command_id; 
+    //~ // Check if a run command has been published
+    //~ lcm.handleTimeout(0);
+    //~ if (lcm_handler.checkRunCommand(command_id))
+    //~ {
+        //~ // Only move to setup when start command received
+        //~ if (command_id == Commands::RunId::RUN_CONTROLLER)
+        //~ {
+            //~ std::cout << "[INFO] Payload controller state set to READ_TRAJECTORY." << std::endl;
+            //~ return READ_TRAJECTORY;
+        //~ }
+        //~ // Only move to setup when start command received
+        //~ if (command_id == Commands::RunId::RUN_DEBUG)
+        //~ {
+            //~ std::cout << "[INFO] Payload controller state set to DEBUG." << std::endl;
+            //~ return DEBUG;
+        //~ }
+    //~ }
     
-    return IDLE;
+    //~ return IDLE;
 
-    // // QUESTION: What doees lcm.handleTimeout do
-    // // DUMMY: Remove OBC comms. Automatically transition after 3s
-    // std::this_thread::sleep_for(std::chrono::seconds(3));
-    // // std::cout << "[INFO] Payload controller state set to READ_TRAJECTORY." << std::endl;
-    // // return READ_TRAJECTORY;
+    // DUMMY: Remove OBC comms. Automatically transition after 3s
+    std::this_thread::sleep_for(std::chrono::seconds(3));
+    std::cout << "[INFO] Payload controller state set to READ_TRAJECTORY." << std::endl;
+    return READ_TRAJECTORY;
     
-    // // To test entering debug
+    // To test entering debug
     // std::cout << "[INFO] Payload controller state set to DEBUG." << std::endl;
     // return DEBUG;
 }
@@ -344,8 +345,20 @@ state_t PayloadController::handleSaveResultsState()
         return ERROR;
     }
 
-    // TODO copy across experiment results to "data/test_obc_nominal/results.csv"
-
+    // opy across experiment results to "data/test_obc_nominal/results.csv"
+    std::string src = results_dir + "/experiment_results.csv";
+    std::string dst = RESULTS_FILEPATH;
+    std::filesystem::create_directories("data/test_obc_nominal");
+    try
+    {
+        std::filesystem::copy_file(src, dst, std::filesystem::copy_options::overwrite_existing);
+        std::cout << "[INFO] Results copied to " << dst << std::endl;
+    }
+    catch (const std::filesystem::filesystem_error& e)
+    {
+        std::cout << "[ERROR] Failed to copy results file: " << e.what() << std::endl;
+        return ERROR;
+    }
     // DUMMMY: Removed OBC comms
     // // Let the OBC bridge know the experiment is complete and results file has been saved
     // publishRunResult(Commands::RunResult::RUN_SUCCESS);

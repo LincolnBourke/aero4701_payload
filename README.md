@@ -205,7 +205,6 @@ Expected: no difference (JPEG is transmitted as raw bytes with no conversion).
 ## Camera-Payload Controller Tests
 
 ### From Terminal
-(need to confirm these commands)
 
 Start camera mode (cameraMaster):
 
@@ -231,19 +230,21 @@ To avoid overwriting results on subsequent startups, it reads and increments a c
 Check on status of service:
 
 ```bash
-INSERT
+systemctl status testapp.service
 ```
+
+Expect to see initially just one python process, then 3 after scripts start.
 
 Stop service:
 
 ```bash
-INSERT
+sudo systemctl stop testapp.service 
 ```
 
 Start service (to check without boot):
 
 ```bash
-INSERT
+sudo systemctl start testapp.service
 ```
 
 
