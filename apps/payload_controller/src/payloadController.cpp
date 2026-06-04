@@ -179,17 +179,17 @@ state_t PayloadController::handleCalibrateServosState()
             std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
             return ERROR;
         }
-        else 
-        {
-            // Wait for it to reach correct pose 
-            long int timeout = 10000; // ms = 10s 
-            waitForPose(timeout); 
-        }
+        // else 
+        // {
+        //     // Wait for it to reach correct pose 
+        //     long int timeout = 10000; // ms = 10s 
+        //     waitForPose(timeout); 
+        // }
         std::cout << "Target position: " << calibration_trajectory.poses[i].position.transpose() << std::endl;
 
         // 20ms = 50Hz, matches servo PWM update rate 
         // usleep(20000); 
-        // usleep(100000); 
+        usleep(50000); 
     }
     
     // Set calibration offset for the Stewart platform
