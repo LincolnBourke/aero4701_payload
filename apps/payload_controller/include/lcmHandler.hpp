@@ -62,11 +62,8 @@ class LcmHandler
         // Returns true if a message was received and stores the id
         bool checkRunCommand(int& command_id);
         bool checkSaveComplete(int& return_id);
-<<<<<<< HEAD
         bool checkSwitchState( int (&switch_states)[3], bool &all_flag );
         bool checkServoAngs( float (&servo_angs)[6] ); 
-
-=======
         
         // Reset to clear for camera communications
         void reset();
@@ -74,7 +71,6 @@ class LcmHandler
         // Getters for receiving and contents of camera status
         bool isCamStatusReceived() const { return cam_status_received; }
         bool getCamStatus() const { return last_cam_msg.cam_status; }
->>>>>>> master
 };
 
 #endif

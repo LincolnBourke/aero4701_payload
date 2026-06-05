@@ -9,24 +9,18 @@
 #include "lcmHandler.hpp"
 #include "camera_command_t.hpp"
 #include "run_result_t.hpp"
-<<<<<<< HEAD
 #include "switch_state_t.hpp"
-=======
 #include "payload_cont_to_cam_msg_t.hpp"
->>>>>>> master
 
 #include <lcm/lcm-cpp.hpp>
 #include <string>
 #include <vector>
 #include <chrono>
-<<<<<<< HEAD
 #include <unistd.h>
 #include <cmath>
 #include <iostream>
 #include <iomanip>
-=======
 #include <thread>
->>>>>>> master
 
 // Define a trajectory
 typedef struct {

@@ -6,16 +6,10 @@
 #include <sstream>
 #include <filesystem>
 
-<<<<<<< HEAD
 #define TRAJECTORY_FILE_STEP 200 // ms, time between successive poses in the trajectory file
 #define TRAJECTORY_STRUCT_STEP 50 // ms, time between successive poses in the trajectory struct
 #define TRAJECTORY_FILE_PATH "data/docking_trajectory.csv"
-=======
-#define TRAJECTORY_FILE_STEP 500 // ms, time between successive poses in the trajectory file
-#define TRAJECTORY_STRUCT_STEP 250 // ms, time between successive poses in the trajectory struct
-#define TRAJECTORY_FILE_PATH "data/trajectory_simple.csv"
 #define RESULTS_FILEPATH        "data/test_obc_nominal/results.csv"
->>>>>>> master
 
 static const char* CH_CONT_TO_CAM = "PAYLOAD_CAM";   // controller --> camera
 static const char* CH_CAM_TO_CONT = "CAM_PAYLOAD";   // camera --> controller
@@ -50,17 +44,14 @@ PayloadController::PayloadController()
     // Subscribe lcm handler to messages
     lcm.subscribe("RUN_COMMAND", &LcmHandler::handleRunCommand, &lcm_handler);
     lcm.subscribe("SAVE_COMPLETE", &LcmHandler::handleSaveComplete, &lcm_handler);
-<<<<<<< HEAD
     lcm.subscribe("LIMIT_SWITCH_STATES", &LcmHandler::handleSwitchStateMsg, &lcm_handler);
     lcm.subscribe("SERVO_STATE", &LcmHandler::handleServoStateMsg, &lcm_handler);
 
     // Clear LCM messages 
     while (lcm.handleTimeout(0) == 1); 
-=======
     
     // Added camera to controller channel
     lcm.subscribe(CH_CAM_TO_CONT, &LcmHandler::handleCamMsg, &lcm_handler);
->>>>>>> master
 };
 
 PayloadController::~PayloadController(){};
@@ -559,7 +550,10 @@ bool PayloadController::trackTrajectoryStep(bool &trajectory_complete)
         // Display the target pose for debugging
         std::cout << "[INFO] Moving to target pose:" 
             << " position: " << trajectory.poses[trajectory_step].position.transpose() << ","
-            << " orientation: "<< trajectory.poses[trajectory_step].orientation << std::endl;
+            << " orientation: [" << trajectory.poses[trajectory_step].orientation.x() << ", "
+            << trajectory.poses[trajectory_step].orientation.y() << ", "
+            << trajectory.poses[trajectory_step].orientation.z() << ", "
+            << trajectory.poses[trajectory_step].orientation.w() << "]" << std::endl;
         
         
         if (platform.moveTo(trajectory.poses[trajectory_step]) == false)
