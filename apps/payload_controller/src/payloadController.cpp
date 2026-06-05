@@ -23,8 +23,8 @@ static const int CAM_WAIT_TIMEOUT_SAVE_MS = 40000;  // 30s for processing + 10s 
 static const bool DEBUG_MODE = true;
 #define CALIBRATION_END_POINT_STEP 5000 // ms
 #define CALIBRATION_STRUCT_STEP 50 // ms
-#define CALIBRATION_START_Z 5 // mm
-#define CALIBRATION_END_Z 0 // mm
+#define CALIBRATION_START_Z 15 // mm
+#define CALIBRATION_END_Z 10 // mm
 #define SERVO_FEEDBACK_INTERVAL_MS 200 // ms between servo feedback samples during experiment
 
 // Angle of the servos when switches activated 
@@ -264,6 +264,8 @@ state_t PayloadController::handleCalibrateServosState()
         // std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
         // return ERROR;
     }
+
+    // while (true) {};
 
     // Automatically transition to camera calibration when the servos are calibrated
     std::cout << "[INFO] Payload controller state set to CALIBRATE_CAMERA." << std::endl;

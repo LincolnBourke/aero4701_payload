@@ -55,6 +55,14 @@ python apps/<app_name>/<entry_point>.py
 
 ## Nominal Operation
 
+First set up for the camera node: 
+
+```bash 
+source ~/.bashrc 
+cd aero4701_payload/
+source venv/bin/activate
+```
+
 The following apps need to run during nominal operation of the payload: 
 
 ```bash 
