@@ -9,16 +9,24 @@
 #include "lcmHandler.hpp"
 #include "camera_command_t.hpp"
 #include "run_result_t.hpp"
+<<<<<<< HEAD
 #include "switch_state_t.hpp"
+=======
+#include "payload_cont_to_cam_msg_t.hpp"
+>>>>>>> master
 
 #include <lcm/lcm-cpp.hpp>
 #include <string>
 #include <vector>
 #include <chrono>
+<<<<<<< HEAD
 #include <unistd.h>
 #include <cmath>
 #include <iostream>
 #include <iomanip>
+=======
+#include <thread>
+>>>>>>> master
 
 // Define a trajectory
 typedef struct {
@@ -38,6 +46,7 @@ typedef enum State {
     SAVE_RESULTS,       // Saves experiment data and tells the camera node to do the same
     TERMINATE_RUN,      // Moves the platform back to the home position 
     ERROR,              // Publishes an erroneous run result
+    DEBUG,              // Focus camera and take a debug test image
 } state_t;
 
 // Define the error processed by the ERROR state
@@ -82,7 +91,7 @@ class PayloadController
         // Return value indicates if interpolation was successful.
         bool interpolateTrajectory(const std::vector<PlatformPose>& raw_poses, trajectory_t& out, 
             float raw_pose_step, float trajectory_step);
-
+        
         // Computes servo angles for every pose in traj, populating traj.angles.
         // Return value indicates if all angles could be calculated.
         bool computeTrajectoryAngles(trajectory_t& traj);
@@ -109,9 +118,13 @@ class PayloadController
         // Return value indicates if the platform could be retracted successfully.
         bool retractPlatform();
 
-        // Block until a save_complete message is received from the camera node.
-        // Return value indicates if the save was successful.
-        bool waitForSaveComplete();
+        // // Block until a save_complete message is received from the camera node.
+        // // Return value indicates if the save was successful.
+        // Replaced with waitForCamStatus, but leaving in case needs to be brough back
+        // bool waitForSaveComplete();
+
+        // Block until status message from camera 
+        bool waitForCamStatus(int timeout_ms);
 
         // Block until the platform has reached the target pose with some tolerance 
         bool waitForPose(const long int timeout); 
@@ -126,9 +139,10 @@ class PayloadController
         state_t handleSaveResultsState();
         state_t handleTerminateRunState();
         state_t handleErrorState();
+        state_t handleDebugState();
 
         // --- LCM publisher methods -------------------------------------------
-        void publishCameraCommand(int8_t command_id);
+        void publishCameraCommand(state_t state, bool debug_mode);
         void publishRunResult(int8_t return_id);
 
     public:

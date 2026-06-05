@@ -5,8 +5,12 @@
 LcmHandler::LcmHandler()
     : last_run_command_msg(), run_command_received(false),
       last_save_complete_msg(), save_complete_received(false),
+<<<<<<< HEAD
       last_switch_state_msg(), switch_state_received(false), 
       all_switched(false)
+=======
+      last_cam_msg(), cam_status_received(false)
+>>>>>>> master
 {};
 
 LcmHandler::~LcmHandler() {};
@@ -61,6 +65,7 @@ bool LcmHandler::checkSaveComplete(int& return_id)
     return true;
 }
 
+<<<<<<< HEAD
 void LcmHandler::handleSwitchStateMsg(const lcm::ReceiveBuffer* rbuf,
     const std::string& channel, const payload_messages::switch_state_t* msg)
 {
@@ -149,3 +154,35 @@ bool LcmHandler::checkServoAngs( float (&servo_angs)[6] ) {
     servo_angs_received = false;
     return true;
 }
+=======
+// // no longer needed? but leaving in case 
+// bool LcmHandler::checkCamStatus(bool& cam_status)
+// {
+//     if (cam_status_received == false)
+//     {
+//         return false;
+//     }
+
+//     cam_status = last_cam_msg.cam_status;
+
+//     cam_status_received = false;
+//     return true;
+// }
+
+void LcmHandler::handleCamMsg(const lcm::ReceiveBuffer* rbuf,
+    const std::string& channel, const payload_messages::cam_msg_t* msg)
+{
+    printf("[INFO] Received message on channel %s with cam_status %d\n", channel.c_str(), (int)msg->cam_status);
+
+    cam_status_received = true;
+    last_cam_msg = *msg;
+
+    rbuf = rbuf;
+}
+
+void LcmHandler::reset()
+{
+    cam_status_received  = false;
+    last_cam_msg         = payload_messages::cam_msg_t{}; // not really needed
+}
+>>>>>>> master
