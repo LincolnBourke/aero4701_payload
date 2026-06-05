@@ -53,6 +53,25 @@ python apps/<app_name>/<entry_point>.py
 ```
 
 
+## Nominal Operation
+
+The following apps need to run during nominal operation of the payload: 
+
+```bash 
+python apps/camera/src/cameraMaster.py
+./build/apps/switch_monitor/switch_monitor
+./build/apps/servo_state_reader/servo_state_reader
+./build/apps/servo_controller/servo_controller
+./build/apps/payload_controller/payload_controller
+./build/apps/obc_bridge/obc_bridge
+```
+
+To run without an instruction from the OBC: 
+
+```bash
+./build/apps/payload_controller/run_controller
+```
+
 ## OBC–Payload UART Communication Tests
 
 These tests validate UART communication between the payload computer and OBC on Ubuntu using `socat` virtual serial ports. The C++ binary always plays the **payload role**; the Python scripts always play the **OBC role**.
