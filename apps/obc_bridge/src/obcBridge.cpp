@@ -6,12 +6,12 @@
 
 // Time to wait for an acknowledgement before repeating a message sent over UART
 #define WAIT_ACK_TIMEOUT 1000 // ms
-#define RESULTS_FILEPATH        "data/test_obc_nominal/results.csv"
-#define DEBUG_RESULTS_FILEPATH  "data/test_obc_debug/debug_mode_focus.jpeg"
+#define RESULTS_FILEPATH        "data/results/results.csv"
+#define DEBUG_RESULTS_FILEPATH  "data/results/debug.jpeg"
 #define DEBUG_IMAGE_WIDTH       640
 #define DEBUG_IMAGE_HEIGHT      480
-#define TRAJECTORY_SETTINGS_FILEPATH "data/test_obc_nominal/trajectory_settings.csv"
-#define SCALAR_SETTINGS_FILEPATH "data/test_obc_nominal/scalar_settings.csv"
+#define TRAJECTORY_SETTINGS_FILEPATH "data/settings/trajectory_settings.csv"
+#define SCALAR_SETTINGS_FILEPATH "data/settings/scalar_settings.csv"
 
 ObcBridge::ObcBridge()
     : lcm(), lcm_handler(), obc_messager()

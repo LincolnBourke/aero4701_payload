@@ -203,6 +203,51 @@ Expected: no difference (JPEG is transmitted as raw bytes with no conversion).
 
 
 
+## Servo Feedback CSV Test (No Hardware)
+
+Tests that servo angle feedback is sampled correctly during a run and written to the results CSV, without requiring physical hardware. Three dummy publishers replace the hardware and camera dependencies.
+
+Start the dummies before the controller.
+
+**Terminal 1 — servo angle feed:**
+```bash
+./build/apps/payload_controller/dummy_servo_state
+```
+
+**Terminal 2 — limit switch bypass (exits calibration immediately):**
+```bash
+./build/apps/payload_controller/dummy_limit_switches
+```
+
+**Terminal 3 — camera response bypass:**
+```bash
+./build/apps/payload_controller/dummy_camera_response
+```
+
+**Terminal 4 — payload controller (system under test):**
+```bash
+./build/apps/payload_controller/payload_controller
+```
+
+**Terminal 5 — send run command to start:**
+```bash
+./build/apps/payload_controller/run_controller
+```
+
+Watch Terminal 4 for the state progression: IDLE → READ_TRAJECTORY → CALIBRATE_SERVOS → CALIBRATE_CAMERA → DEPLOY → RUNNING → SAVE_RESULTS → IDLE.
+
+### Verification
+
+After the run completes, inspect the results CSV:
+
+```bash
+cat outputs/boot_000/experiment_results/experiment_results.csv
+```
+
+Expected: one row per 200 ms sample during RUNNING state, 6 comma-separated values per row, all in the range ~22–68° (sinusoidal dummy signal). The controller also prints `[INFO] Servo feedback samples: N` during SAVE_RESULTS.
+
+---
+
 ## Camera-Payload Controller Tests
 
 ### From Terminal

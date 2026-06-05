@@ -11,7 +11,7 @@ int main()
     {
         reader.pubState();
         // usleep(10000) would give you 100Hz
-        usleep(1000);
+        usleep(20000);
     }
 
     return 0;
