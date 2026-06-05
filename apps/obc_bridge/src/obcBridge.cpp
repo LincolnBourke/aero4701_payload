@@ -1,17 +1,14 @@
 #include "obcBridge.hpp"
 #include "run_command_t.hpp"
 #include "commands.hpp"
+#include "payloadConfig.hpp"
 
 #include <iostream>
 
 // Time to wait for an acknowledgement before repeating a message sent over UART
-#define WAIT_ACK_TIMEOUT 1000 // ms
-#define RESULTS_FILEPATH        "data/results/results.csv"
-#define DEBUG_RESULTS_FILEPATH  "data/results/debug.jpeg"
-#define DEBUG_IMAGE_WIDTH       640
-#define DEBUG_IMAGE_HEIGHT      480
-#define TRAJECTORY_SETTINGS_FILEPATH "data/settings/trajectory_settings.csv"
-#define SCALAR_SETTINGS_FILEPATH "data/settings/scalar_settings.csv"
+#define WAIT_ACK_TIMEOUT                1000 // ms
+#define DEBUG_IMAGE_WIDTH               640
+#define DEBUG_IMAGE_HEIGHT              480
 
 ObcBridge::ObcBridge()
     : lcm(), lcm_handler(), obc_messager()
@@ -158,7 +155,7 @@ ObcBridgeState ObcBridge::handleReceiveSettingsState()
                     obc_messager.transmitAck(PYLD_TRANSFER_COMPLETE_ID);
 
                     // Deserialise received packets into trajectory and scalar settings files
-                    if (!obc_messager.deserialise(TRAJECTORY_SETTINGS_FILEPATH, SCALAR_SETTINGS_FILEPATH))
+                    if (!obc_messager.deserialise(TRAJECTORY_SETTINGS_FILEPATH, CAMERA_SETTINGS_FILEPATH))
                         std::cout << "[ERROR] Failed to deserialise received settings file." << std::endl;
 
                     return ObcBridgeState::IDLE;

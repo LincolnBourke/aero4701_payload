@@ -12,6 +12,8 @@
 #include "switch_state_t.hpp"
 #include "payload_cont_to_cam_msg_t.hpp"
 
+#include "payloadConfig.hpp"
+
 #include <lcm/lcm-cpp.hpp>
 #include <string>
 #include <vector>
@@ -21,8 +23,6 @@
 #include <iostream>
 #include <iomanip>
 #include <thread>
-
-#define NUM_TIMESTEPS 150
 
 // Define a trajectory
 typedef struct {

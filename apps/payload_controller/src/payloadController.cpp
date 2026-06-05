@@ -6,10 +6,10 @@
 #include <sstream>
 #include <filesystem>
 
+#include "payloadConfig.hpp"
+
 #define TRAJECTORY_FILE_STEP 200 // ms, time between successive poses in the trajectory file
 #define TRAJECTORY_STRUCT_STEP 50 // ms, time between successive poses in the trajectory struct
-#define TRAJECTORY_FILE_PATH "data/docking_trajectory.csv"
-#define RESULTS_FILEPATH     "data/results/results.csv"
 
 static const char* CH_CONT_TO_CAM = "PAYLOAD_CAM";   // controller --> camera
 static const char* CH_CAM_TO_CONT = "CAM_PAYLOAD";   // camera --> controller
