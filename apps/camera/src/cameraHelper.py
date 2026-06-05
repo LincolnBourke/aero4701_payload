@@ -46,36 +46,45 @@ def setup_calib_parameters():
 
 # Define ROIS centred in the image
 # TODO Could avoid hardcoding, or update
-def define_rois(width=640, height=480, scale=0.5):
-    # Scale controls ROI size relative to image size
-    w = int(width * scale)
-    h = int(height * scale)
+# ~ def define_rois(width=640, height=480, scale=0.5):
+    # ~ # Scale controls ROI size relative to image size
+    # ~ w = int(width * scale)
+    # ~ h = int(height * scale)
 
-    cx = width // 2
-    cy = height // 2
+    # ~ cx = width // 2
+    # ~ cy = height // 2
 
-    # Offsets for triangular layout
-    dx = int(width * 0.2)
-    dy = int(height * 0.2)
+    # ~ # Offsets for triangular layout
+    # ~ dx = int(width * 0.2)
+    # ~ dy = int(height * 0.2)
 
-    top_extra = int(height * 0.1)   # extra upward movement
-    bottom_extra = int(height * 0.1)   # extra downward movement
+    # ~ top_extra = int(height * 0.1)   # extra upward movement
+    # ~ bottom_extra = int(height * 0.1)   # extra downward movement
 
-    ROIS = [
-        # top board
-        (cx - w//2, cy - h//2 - dy - top_extra,
-         cx + w//2, cy + h//2 - dy - top_extra),
+    # ~ ROIS = [
+        # ~ # top board
+        # ~ (cx - w//2, cy - h//2 - dy - top_extra,
+         # ~ cx + w//2, cy + h//2 - dy - top_extra),
 
-        # bottom-left board
-        (cx - w//2 - dx, cy - h//2 + dy + bottom_extra,
-         cx + w//2 - dx, cy + h//2 + dy + bottom_extra),
+        # ~ # bottom-left board
+        # ~ (cx - w//2 - dx, cy - h//2 + dy + bottom_extra,
+         # ~ cx + w//2 - dx, cy + h//2 + dy + bottom_extra),
 
-        # bottom-right board
-        (cx - w//2 + dx, cy - h//2 + dy + bottom_extra,
-         cx + w//2 + dx, cy + h//2 + dy + bottom_extra),
+        # ~ # bottom-right board
+        # ~ (cx - w//2 + dx, cy - h//2 + dy + bottom_extra,
+         # ~ cx + w//2 + dx, cy + h//2 + dy + bottom_extra),
+    # ~ ]
+
+    # ~ return ROIS
+    
+def define_rois():
+    """Hardcoded ROIs tuned for 640x480."""
+    return [
+        (160,  11, 480, 266),  # Board 0 (top)
+        ( 32, 194, 377, 484),  # Board 1 (bot-left)
+        (258, 189, 608, 479),  # Board 2 (bot-right)
     ]
 
-    return ROIS
 
 # Test function to draw on ROIS onto image for validation
 def test_draw_rois(image_path, ROIS, output_dir="outputs", name="roi_debug.png"): 
