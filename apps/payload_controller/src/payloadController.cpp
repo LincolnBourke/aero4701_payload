@@ -4,11 +4,27 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <filesystem>
 
 #define TRAJECTORY_FILE_STEP 500 // ms, time between successive poses in the trajectory file
 #define TRAJECTORY_STRUCT_STEP 250 // ms, time between successive poses in the trajectory struct
 #define TRAJECTORY_FILE_PATH "data/trajectory_simple.csv"
+#define RESULTS_FILEPATH        "data/test_obc_nominal/results.csv"
 
+static const char* CH_CONT_TO_CAM = "PAYLOAD_CAM";   // controller --> camera
+static const char* CH_CAM_TO_CONT = "CAM_PAYLOAD";   // camera --> controller
+
+// Timeouts for waiting for camera to respond
+static const int CAM_WAIT_TIMEOUT_CALIB_MS  = 60000;  // 1 min for calibration - need this to wait enough time for camera to calibrate (attempts 3 times) 
+static const int CAM_WAIT_TIMEOUT_DEFAULT_MS = 10000;  // 10s timeout
+static const int CAM_WAIT_TIMEOUT_SAVE_MS = 40000;  // 30s for processing + 10s buffer - need extra time to process results and save pose estimates
+
+// Automatically enters debug mode, no flag set - could be a comms from OBC?
+static const bool DEBUG_MODE = true;
+#define CALIBRATION_END_POINT_STEP 5000 // ms
+#define CALIBRATION_STRUCT_STEP 20 // ms
+#define CALIBRATION_START_Z 15 // mm
+#define CALIBRATION_END_Z 0 // mm
 
 PayloadController::PayloadController()
     : lcm(), lcm_handler(), error(), platform(), trajectory_step(0), experiment_start_time()
@@ -23,6 +39,9 @@ PayloadController::PayloadController()
     // Subscribe lcm handler to messages
     lcm.subscribe("RUN_COMMAND", &LcmHandler::handleRunCommand, &lcm_handler);
     lcm.subscribe("SAVE_COMPLETE", &LcmHandler::handleSaveComplete, &lcm_handler);
+    
+    // Added camera to controller channel
+    lcm.subscribe(CH_CAM_TO_CONT, &LcmHandler::handleCamMsg, &lcm_handler);
 };
 
 PayloadController::~PayloadController(){};
@@ -63,6 +82,9 @@ void PayloadController::run()
         case ERROR:
             state = handleErrorState();
             break;
+        case DEBUG:
+            state = handleDebugState();
+            break;
         default: 
             std::cout << "[ERROR] Payload controller entered invalid state." << std::endl;
         }
@@ -85,6 +107,12 @@ state_t PayloadController::handleIdleState()
             std::cout << "[INFO] Payload controller state set to READ_TRAJECTORY." << std::endl;
             return READ_TRAJECTORY;
         }
+        // Only move to debug when command received
+        if (command_id == Commands::RunId::RUN_DEBUG)
+        {
+            std::cout << "[INFO] Payload controller state set to DEBUG." << std::endl;
+            return DEBUG;
+        }
     }
 
     return IDLE;
@@ -99,13 +127,52 @@ state_t PayloadController::handleReadTrajectoryState()
         return ERROR;
     }
 
+    // TODO check if will need a sleep for python
+
     // Automatically transition to servo calibration when the trajectory can be read
     std::cout << "[INFO] Payload controller state set to CALIBRATE_SERVOS." << std::endl;
     return CALIBRATE_SERVOS;
 }
 
 state_t PayloadController::handleCalibrateServosState()
-{
+{   
+    // Max and min z values scanned during calibration
+    const float max_z = 12.5; // mm
+    const float min_z = 0.0; // mm
+
+    // Generate the start and end positions for the servo calibration
+    PlatformPose start_pose = PlatformPose{Vector3f::Zero(), Quaternionf::Identity()};
+    PlatformPose end_pose = PlatformPose{Vector3f::Zero(), Quaternionf::Identity()}; 
+    start_pose.position(2) = max_z;
+    end_pose.position(2) = min_z;
+    std::vector<PlatformPose> end_points = {start_pose, end_pose};
+
+    // Generate trajectory between positions
+    trajectory_t calibration_trajectory;
+    bool success = interpolateTrajectory(end_points, calibration_trajectory, CALIBRATION_END_POINT_STEP, CALIBRATION_STRUCT_STEP);
+    if (success == false)
+    {
+        error.msg = "Could not generate calibration trajectory.";
+        std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+        return ERROR;
+    }
+
+    // Lower platform along trajectory until limit switches activate 
+    for (size_t i = 0; i < calibration_trajectory.times.size(); i++)
+    {   
+        // Check if the limit switches have activated
+        // TODO
+
+        // Move platform along trajectory
+        if (platform.moveTo(calibration_trajectory.poses[i]) == false)
+        {
+            error.msg = "Could not move platform to starting pose during servo calibration.";
+            std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+            return ERROR;
+        }
+    }
+    
+    // Set calibration offset for the Stewart platform
     // TODO
 
     // Automatically transition to camera calibration when the servos are calibrated
@@ -116,16 +183,19 @@ state_t PayloadController::handleCalibrateServosState()
 state_t PayloadController::handleCalibrateCameraState()
 {
     // Start camera nodes
-    publishCameraCommand(Commands::CameraCommandId::START_CAMERA);
-
-    // TODO: calibrate camera commands
+    publishCameraCommand(CALIBRATE_CAMERA, DEBUG_MODE);
+    
+    // Wait for camera to report complete (1 min timeout for calibration)
+    if (!waitForCamStatus(CAM_WAIT_TIMEOUT_CALIB_MS))
+    {
+        std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+        return ERROR;
+    }
 
     // Automatically deploy platform when camera has been calibrated
     std::cout << "[INFO] Payload controller state set to DEPLOY." << std::endl;
     return DEPLOY;
 }
-
-
 
 state_t PayloadController::handleDeployState()
 {
@@ -151,13 +221,26 @@ state_t PayloadController::handleDeployState()
         }
     }
 
-    // Check if the platform is fully deployed before moving to RUNNING
+    // Check if the platform is fully deployed 
     if (platform_deployed == true)
     {
         std::cout << "[INFO] Payload controller state set to RUNNING." << std::endl;
+        
+        // Publish deploy to camera 
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        publishCameraCommand(DEPLOY, DEBUG_MODE);
+
+        // Wait for camera to report complete
+        if (!waitForCamStatus(CAM_WAIT_TIMEOUT_DEFAULT_MS))
+        {
+            std::cout << "[INFO] Payload controller state set to TERMINATE_RUN." << std::endl;
+            return TERMINATE_RUN;
+        }
+
         experiment_start_time = std::chrono::steady_clock::now(); // Start timing experiment
         trajectory_step = 0; // Track trajectory from the start
-        return RUNNING;
+        
+        return RUNNING; 
     }
 
     return DEPLOY;
@@ -167,6 +250,15 @@ state_t PayloadController::handleRunningState()
 {
     bool trajectory_complete;
     int command_id;
+
+    // Only publish to camera on first step
+    if (trajectory_step == 0)
+    {
+        // Give camera python script a second to catch up
+        std::cout << "[INFO] Publish RUNNING to camera" << std::endl;
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        publishCameraCommand(RUNNING, DEBUG_MODE);
+    }
 
     // Make an incremental step to move the platform along the trajectory
     if (trackTrajectoryStep(trajectory_complete) == false)
@@ -199,15 +291,65 @@ state_t PayloadController::handleRunningState()
 
 state_t PayloadController::handleSaveResultsState()
 {
+    // Need 1s buffer for camera python to be ready
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+
     // Create a results file and save the servo angles across the trajectory
     // TODO
-
-    // Prompt the event camera node to save its results and wait for confirmation
-    publishCameraCommand(Commands::CameraCommandId::STOP_AND_SAVE);
-
-    if (waitForSaveComplete() == false)
+    // Suggested from Ollie - use this as base for code to save into experiment_results, then I will append to same file in camera python
+    // Extract the boot count number on compute module (hardcoded path)
+    int boot_count = 0;
+    std::ifstream count_file("/home/slave2/Documents/service_test/boot_count.txt");
+    if (count_file.is_open())
     {
-        std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+        count_file >> boot_count;
+        count_file.close();
+    }
+    else
+    {
+        std::cout << "[WARN] Could not read boot_count.txt, defaulting to 0" << std::endl;
+    }
+
+    // Create path names based on current boot
+    char boot_dir[64];
+    std::snprintf(boot_dir, sizeof(boot_dir), "outputs/boot_%03d", boot_count);
+    std::string results_dir = std::string(boot_dir) + "/experiment_results";
+    std::filesystem::create_directories(results_dir);
+
+    // Example of writing servo angles to csv
+    std::ofstream results_file(results_dir + "/experiment_results.csv");
+    if (!results_file.is_open())
+    {
+        std::cout << "[ERROR] Failed to open results file." << std::endl;
+        return ERROR;
+    }
+    // results_file << "tx,ty,tz,rx,ry,rz\n"; 
+    results_file << "0.0,0.0,0.0,0.0,0.0,0.0\n";
+    results_file.close();
+    
+    // Publish SAVE_RESULTS state to camera
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    publishCameraCommand(SAVE_RESULTS, DEBUG_MODE);
+
+    // Wait for camera to report complete
+    if (!waitForCamStatus(CAM_WAIT_TIMEOUT_SAVE_MS))
+    {
+        std::cout << "[INFO] State set to ERROR." << std::endl;
+        return ERROR;
+    }
+
+    // Copy across experiment results file to path for obc
+    std::string src = results_dir + "/experiment_results.csv";
+    std::string dst = RESULTS_FILEPATH;
+    std::filesystem::create_directories("data/test_obc_nominal");
+    try
+    {
+        std::filesystem::copy_file(src, dst, std::filesystem::copy_options::overwrite_existing);
+        std::cout << "[INFO] Results copied to " << dst << std::endl;
+    }
+    catch (const std::filesystem::filesystem_error& e)
+    {
+        std::cout << "[ERROR] Failed to copy results file: " << e.what() << std::endl;
         return ERROR;
     }
 
@@ -227,6 +369,17 @@ state_t PayloadController::handleTerminateRunState()
         return ERROR;
     }
 
+    // Publish TERMINATE_RUN state to camera
+    // TODO check if will need sleep
+    publishCameraCommand(TERMINATE_RUN, DEBUG_MODE);
+
+    // Wait for camera to report complete
+    if (!waitForCamStatus(CAM_WAIT_TIMEOUT_DEFAULT_MS))
+    {
+        std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+        return ERROR;
+    }
+
     // Automatically move back to IDLE
     std::cout << "[INFO] Payload controller state set to IDLE." << std::endl;
     return IDLE;
@@ -234,6 +387,9 @@ state_t PayloadController::handleTerminateRunState()
 
 state_t PayloadController::handleErrorState()
 {
+    // Publish ERROR state to camera 
+    publishCameraCommand(ERROR, DEBUG_MODE);
+    
     // TODO: determine if the error message should be used elsewhere
     std::cout << "[ERROR] " << error.msg << std::endl;
 
@@ -245,6 +401,27 @@ state_t PayloadController::handleErrorState()
     return IDLE;
 }
 
+state_t PayloadController::handleDebugState()
+{
+    // Start camera node
+    publishCameraCommand(DEBUG, DEBUG_MODE);
+    
+    // Wait for camera to report complete (1 min timeout for debug)
+    if (!waitForCamStatus(CAM_WAIT_TIMEOUT_CALIB_MS))
+    {
+        std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+        // Transmit to OBC error
+        publishRunResult(Commands::RunResult::RUN_FAIL);
+        return ERROR;
+    }
+
+    // Transmit to OBC on success
+    publishRunResult(Commands::RunResult::RUN_SUCCESS); 
+
+    // Send back to idle for next OBC command
+    std::cout << "[INFO] Payload controller state set to IDLE." << std::endl;
+    return IDLE;
+}
 
 // --- Trajectory tracking -----------------------------------------------------
 
@@ -289,31 +466,6 @@ bool PayloadController::retractPlatform()
 {
     // TODO
     return false;
-}
-
-bool PayloadController::waitForSaveComplete()
-{
-    bool result = false;
-    int return_id;
-
-    while (lcm.getFileno() >= 0)
-    {
-        lcm.handle();
-
-        if (lcm_handler.checkSaveComplete(return_id))
-        {
-            if (return_id == Commands::SaveResult::SAVE_SUCCESS)
-                result = true;
-            else if (return_id == Commands::SaveResult::SAVE_FAIL)
-                error.msg = "Camera node failed to save results.";
-            else
-                error.msg = "Unknown return_id published to SAVE_COMPLETE.";
-
-            break;
-        }
-    }
-
-    return result;
 }
 
 // --- File i/o ----------------------------------------------------------------
@@ -405,7 +557,10 @@ bool PayloadController::writeAnglesToFile(std::string file_path)
 
 // --- Trajectory building -----------------------------------------------------
 
-bool PayloadController::interpolateTrajectory(const std::vector<PlatformPose>& raw_poses, trajectory_t& out)
+// Interpolate raw poses spaced by raw_pose_step at interval specified by
+// trajectory_step. Both steps are in ms.
+bool PayloadController::interpolateTrajectory(const std::vector<PlatformPose>& raw_poses, 
+    trajectory_t& out, float raw_pose_step, float trajectory_step)
 {
     // Require at least two poses to interpolate between
     if (raw_poses.size() < 2)
@@ -413,7 +568,7 @@ bool PayloadController::interpolateTrajectory(const std::vector<PlatformPose>& r
         return false;
     }
 
-    const int n_steps = TRAJECTORY_FILE_STEP / TRAJECTORY_STRUCT_STEP;
+    const int n_steps = raw_pose_step / trajectory_step;
 
     // Interpolate between each consecutive pair of raw poses
     for (size_t i = 0; i < raw_poses.size() - 1; i++)
@@ -430,13 +585,13 @@ bool PayloadController::interpolateTrajectory(const std::vector<PlatformPose>& r
             Eigen::Quaternionf orientation = raw_poses[i].orientation.slerp(t, raw_poses[i + 1].orientation);
 
             out.poses.push_back({pos, orientation});
-            out.times.push_back((float)(i * TRAJECTORY_FILE_STEP + j * TRAJECTORY_STRUCT_STEP));
+            out.times.push_back((float)(i * raw_pose_step + j * trajectory_step));
         }
     }
 
     // Append the final raw pose to close the trajectory
     out.poses.push_back(raw_poses.back());
-    out.times.push_back((float)((raw_poses.size() - 1) * TRAJECTORY_FILE_STEP));
+    out.times.push_back((float)((raw_poses.size() - 1) * raw_pose_step));
 
     return true;
 }
@@ -477,7 +632,7 @@ bool PayloadController::buildTrajectory()
     }
 
     // Interpolate between raw poses at TRAJECTORY_STRUCT_STEP intervals
-    if (interpolateTrajectory(raw_poses, temp) == false)
+    if (interpolateTrajectory(raw_poses, temp, TRAJECTORY_FILE_STEP, TRAJECTORY_STRUCT_STEP) == false)
     {
         error.msg = "Could not interpolate trajectory.";
         return false;
@@ -553,12 +708,15 @@ void PayloadController::printTrajectory()
 
 // --- LCM publisher methods ---------------------------------------------------
 
-void PayloadController::publishCameraCommand(int8_t command_id)
+void PayloadController::publishCameraCommand(state_t state, bool debug_mode)
 {
-    payload_messages::camera_command_t msg;
-    msg.command_id = command_id;
-    std::cout << "[INFO] Publishing to CAMERA_COMMAND: command_id=" << (int)command_id << std::endl;
-    lcm.publish("CAMERA_COMMAND", &msg);
+    payload_messages::payload_cont_to_cam_msg_t msg;
+    msg.cont_state = static_cast<int8_t>(state);
+    msg.debug_mode = debug_mode;
+    lcm.publish(CH_CONT_TO_CAM, &msg);
+    std::cout << "[INFO] Published to " << CH_CONT_TO_CAM
+                << ": cont_state=" << static_cast<int>(state)
+                << " debug_mode=" << debug_mode << std::endl;
 }
 
 void PayloadController::publishRunResult(int8_t return_id)
@@ -567,4 +725,33 @@ void PayloadController::publishRunResult(int8_t return_id)
     msg.return_id = return_id;
     std::cout << "[INFO] Publishing to RUN_RESULT: return_id=" << (int)return_id << std::endl;
     lcm.publish("RUN_RESULT", &msg);
+}
+
+// updated with error.msg
+bool PayloadController::waitForCamStatus(int timeout_ms)
+{
+    lcm_handler.reset();
+    auto start = std::chrono::steady_clock::now();
+
+    while (!lcm_handler.isCamStatusReceived())
+    {
+        lcm.handleTimeout(100);
+
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - start).count();
+
+        if (elapsed >= timeout_ms)
+        {
+            error.msg = "Timed out waiting for camera response.";
+            return false;
+        }
+    }
+
+    if (!lcm_handler.getCamStatus())
+    {
+        error.msg = "Camera reported failure.";
+        return false;
+    }
+
+    return true;
 }

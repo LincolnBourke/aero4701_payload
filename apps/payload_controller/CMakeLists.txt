@@ -47,3 +47,26 @@ target_include_directories(run_controller PRIVATE
 target_link_libraries(run_controller PRIVATE
     PkgConfig::lcm
 )
+
+
+add_executable(camera_payload_controller
+    src/main.cpp
+    tests/cameraPayloadController.cpp
+    src/lcmHandler.cpp
+    src/stewartPlatform.cpp
+    src/servoMotor.cpp
+)
+
+target_include_directories(camera_payload_controller PRIVATE
+    include
+    ${CMAKE_SOURCE_DIR}/lcm_messages
+    ${CMAKE_SOURCE_DIR}/lcm_messages/payload_messages
+)
+
+target_link_libraries(camera_payload_controller PRIVATE
+    Eigen3::Eigen
+    PkgConfig::lcm
+)
+
+target_compile_options(camera_payload_controller PRIVATE -Werror -Wall -Wextra)
+

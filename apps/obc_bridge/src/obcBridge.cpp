@@ -335,10 +335,38 @@ ObcBridgeState ObcBridge::handleTransmitErrorState()
     return ObcBridgeState::IDLE;
 }
 
+// (modelled off of do experiment state)
 ObcBridgeState ObcBridge::handleDebugState()
 {
-    // TODO: need to implement debug functionality for the payload controller
-    return ObcBridgeState::DEBUG;
+    int run_result_id;
+
+    // Start the debug mode
+    publishRunCommand(Commands::RunId::RUN_DEBUG);
+
+    // Poll for stop run messages from the OBC and run complete messages from
+    // the payload controller
+    while (true)
+    {
+        // Drain all available UART messages into the receive queue once per cycle
+        obc_messager.drainUart();
+
+        if (lcm_handler.checkRunResult(run_result_id) == true)
+        {
+            if (run_result_id == Commands::RunResult::RUN_SUCCESS)
+                return ObcBridgeState::TRANSMIT_DEBUG_RESULTS;
+
+            if (run_result_id == Commands::RunResult::RUN_FAIL)
+                return ObcBridgeState::TRANSMIT_EXPERIMENT_ERROR;
+        }
+
+        if (obc_messager.checkMessage(PYLD_STOP_ID))
+        {
+            publishRunCommand(Commands::RunId::STOP_CONTROLLER);
+            return ObcBridgeState::IDLE;
+        }
+    }
+
+    return ObcBridgeState::DEBUG; // should never reach this line    
 }
 
 

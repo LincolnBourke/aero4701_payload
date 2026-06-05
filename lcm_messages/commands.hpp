@@ -10,7 +10,8 @@ namespace Commands
     enum RunId
     {
         RUN_CONTROLLER,
-        STOP_CONTROLLER
+        STOP_CONTROLLER, 
+        RUN_DEBUG
     };
 
     enum RunResult

@@ -200,5 +200,54 @@ diff data/test_obc_debug/debug_mode_focus.jpeg data/test_obc_debug/debug_mode_fo
 
 Expected: no difference (JPEG is transmitted as raw bytes with no conversion).
 
+
+
+## Camera-Payload Controller Tests
+
+### From Terminal
+
+Start camera mode (cameraMaster):
+
+```bash
+source ~/.bashrc 
+cd aero4701_payload/
+source venv/bin/activate
+python3 apps/camera/src/cameraMaster.py
+```
+
+Start controller mode (cameraPayloadController) (remember to cmake after editing):
+
+```bash
+./build/apps/payload_controller/camera_payload_controller
+```
+
+
+### From Startup 
+testapp_service is configured to call cameraMaster.py and cameraPayloadController.cpp on startup and run experiment automatically. This is configured in a python service script on compute module.
+
+To avoid overwriting results on subsequent startups, it reads and increments a counter from boot_count.txt on the compute module, to save results in outputs/boot_0XX. 
+
+Check on status of service:
+
+```bash
+systemctl status testapp.service
+```
+
+Expect to see initially just one python process, then 3 after scripts start.
+
+Stop service:
+
+```bash
+sudo systemctl stop testapp.service 
+```
+
+Start service (to check without boot):
+
+```bash
+sudo systemctl start testapp.service
+```
+
+
+
 ## Notes
 Zero angles: [ 90.00, 180.00, 79.71, 180.00, 97.71, 180.00 ] 
