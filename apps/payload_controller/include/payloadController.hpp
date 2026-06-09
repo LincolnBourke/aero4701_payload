@@ -74,9 +74,19 @@ class PayloadController
         // The step number which trackTrajectoryStep is up to
         std::vector<float>::size_type trajectory_step;
 
-        // The time for which the experiment or servo calibration procedure has been running
+        // Two-phase deployment trajectory from calibrated rest to trajectory.poses[0]
+        trajectory_t deploy_trajectory;
+
+        // Current step in deploy_trajectory
+        size_t deploy_step;
+
+        // The time for which the experiment has been running
         std::chrono::time_point<std::chrono::steady_clock> experiment_start_time;
-        std::chrono::time_point<std::chrono::steady_clock> calibration_start_time;
+
+        // General-purpose timer (start with startTimer(), query with readTimer())
+        std::chrono::time_point<std::chrono::steady_clock> timer_start;
+        void startTimer();
+        float readTimer(); // returns ms elapsed since startTimer()
 
         // Servo feedback across the length of the trajectory
         // Emptied at start of an experiment and populated by the end
@@ -105,7 +115,12 @@ class PayloadController
         // Return value indicates if the file could be written.
         bool writeAnglesToFile(std::string file_path);
 
-        // Incrementally moves the platform to the starting position in trajectory.angles.
+        // Builds the two-phase deployment trajectory into deploy_trajectory.
+        // Must be called after buildTrajectory() populates trajectory.poses.
+        // Return value indicates if both phases could be constructed.
+        bool buildDeployTrajectory();
+
+        // Incrementally moves the platform one step along deploy_trajectory.
         // platform_deployed = false indicates this method should be called again.
         // Return value indicates if the platform could be deployed.
         bool deployPlatformStep(bool &platform_deployed);
@@ -129,6 +144,17 @@ class PayloadController
 
         // Block until the platform has reached the target pose with some tolerance 
         bool waitForPose(const long int timeout); 
+
+        // --- Servo calibration helpers ---------------------------------------
+        // Moves the platform from PLATFORM_REST_Z to CALIBRATION_START_Z.
+        bool moveToCalibrationStart();
+
+        // Lowers the platform from CALIBRATION_START_Z to CALIBRATION_END_Z,
+        // polling limit switches. Sets switches_activated on return.
+        bool descendUntilSwitchActivation(bool& switches_activated);
+
+        // Reads servo angles at switch activation and sets calibration offsets.
+        void applyCalibrationOffsets(bool switches_activated);
 
         // --- State methods ---------------------------------------------------
         state_t handleIdleState();

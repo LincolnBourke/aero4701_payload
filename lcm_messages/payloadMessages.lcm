@@ -36,6 +36,12 @@ struct servo_targets_t
     float angles[6];
 }
 
+struct platform_target_t
+{
+    float position[3];    // x, y, z of platform in mm 
+    float orientation[3]; // roll, pitch, yaw of platform in radians 
+}
+
 struct true_servo_angles_t
 {
     float angles[6];

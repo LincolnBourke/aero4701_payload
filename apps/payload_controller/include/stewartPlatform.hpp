@@ -72,6 +72,7 @@ class StewartPlatform
 
         // --- LCM publisher methods -------------------------------------------
         void publishServoTargets();
+        void publishPlatformTarget(const PlatformPose& target_pose);
     
     public: 
         StewartPlatform();
