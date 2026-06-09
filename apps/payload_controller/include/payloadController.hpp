@@ -72,9 +72,13 @@ class PayloadController
         // The step number which trackTrajectoryStep is up to
         std::vector<float>::size_type trajectory_step;
 
-        // The time for which the experiment or servo calibration procedure has been running
+        // The time for which the experiment has been running
         std::chrono::time_point<std::chrono::steady_clock> experiment_start_time;
-        std::chrono::time_point<std::chrono::steady_clock> calibration_start_time;
+
+        // General-purpose timer (start with startTimer(), query with readTimer())
+        std::chrono::time_point<std::chrono::steady_clock> timer_start;
+        void startTimer();
+        float readTimer(); // returns ms elapsed since startTimer()
 
         // Reads raw poses from the trajectory file into raw_poses.
         // Return value indicates if the file was found and read successfully.
@@ -122,6 +126,17 @@ class PayloadController
 
         // Block until the platform has reached the target pose with some tolerance 
         bool waitForPose(const long int timeout); 
+
+        // --- Servo calibration helpers ---------------------------------------
+        // Moves the platform from PLATFORM_REST_Z to CALIBRATION_START_Z.
+        bool moveToCalibrationStart();
+
+        // Lowers the platform from CALIBRATION_START_Z to CALIBRATION_END_Z,
+        // polling limit switches. Sets switches_activated on return.
+        bool descendUntilSwitchActivation(bool& switches_activated);
+
+        // Reads servo angles at switch activation and sets calibration offsets.
+        void applyCalibrationOffsets(bool switches_activated);
 
         // --- State methods ---------------------------------------------------
         state_t handleIdleState();

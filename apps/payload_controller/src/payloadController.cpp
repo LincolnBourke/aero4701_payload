@@ -148,158 +148,23 @@ state_t PayloadController::handleReadTrajectoryState()
 
 state_t PayloadController::handleCalibrateServosState()
 {
-    // Max and min z values scanned during calibration
-    const float max_z = CALIBRATION_START_Z; // mm
-    const float min_z = CALIBRATION_END_Z; // mm
-
-    // Phase 1: Move platform outward from rest position to calibration start (no switch checking)
+    // Phase 1: Move platform outward from rest position to calibration start
+    if (!moveToCalibrationStart())
     {
-        PlatformPose rest_pose = PlatformPose{Vector3f::Zero(), Quaternionf::Identity()};
-        PlatformPose outward_start_pose = PlatformPose{Vector3f::Zero(), Quaternionf::Identity()};
-        rest_pose.position(2) = PLATFORM_REST_Z;
-        outward_start_pose.position(2) = max_z;
-        std::vector<PlatformPose> outward_end_points = {rest_pose, outward_start_pose};
-
-        trajectory_t outward_trajectory;
-        if (interpolateTrajectory(outward_end_points, outward_trajectory, CALIBRATION_END_POINT_STEP, CALIBRATION_STRUCT_STEP) == false)
-        {
-            error.msg = "Could not generate outward calibration trajectory.";
-            std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
-            return ERROR;
-        }
-
-        auto outward_start_time = std::chrono::steady_clock::now();
-        size_t j = 0;
-        while (j < outward_trajectory.times.size())
-        {
-            std::chrono::duration<double> time_temp = std::chrono::steady_clock::now() - outward_start_time;
-            double outward_time = std::chrono::duration<double, std::milli>(time_temp).count();
-
-            if (outward_time >= outward_trajectory.times[j])
-            {
-                if (platform.moveTo(outward_trajectory.poses[j]) == false)
-                {
-                    error.msg = "Could not move platform to starting pose during servo calibration.";
-                    std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
-                    return ERROR;
-                }
-                j++;
-            }
-        }
-    }
-
-    // Phase 2: Lower platform from calibration start to end, checking for limit switch activation
-
-    // Generate the start and end positions for the servo calibration
-    PlatformPose start_pose = PlatformPose{Vector3f::Zero(), Quaternionf::Identity()};
-    PlatformPose end_pose = PlatformPose{Vector3f::Zero(), Quaternionf::Identity()}; 
-    start_pose.position(2) = max_z;
-    end_pose.position(2) = min_z;
-    std::vector<PlatformPose> end_points = {start_pose, end_pose};
-
-    // Generate trajectory between positions
-    trajectory_t calibration_trajectory;
-    if (interpolateTrajectory(end_points, calibration_trajectory, CALIBRATION_END_POINT_STEP, CALIBRATION_STRUCT_STEP) == false)
-    {
-        error.msg = "Could not generate inward calibration trajectory.";
         std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
         return ERROR;
     }
 
-    // Start timing calibration 
-    calibration_start_time = std::chrono::steady_clock::now();
-
-    // Lower platform along trajectory until limit switches activate 
-    int switch_states[3] = {0}; 
-    bool switches_activated = false; 
-
-    size_t i = 0;
-    while (true)
-    {   
-        // Exit when finished trajectory
-        if (i == calibration_trajectory.times.size())
-        {
-            break;
-        }
-
-        // Get the current time since calibration began 
-        std::chrono::duration<double> time_temp = std::chrono::steady_clock::now() - calibration_start_time;
-        double calibration_time = std::chrono::duration<double, std::milli>(time_temp).count();
-        
-        // Move platform along trajectory
-        if (calibration_time >= calibration_trajectory.times[i])
-        {
-            if ( platform.moveTo(calibration_trajectory.poses[i]) == false )
-            {
-                error.msg = "Could not move platform to starting pose during servo calibration.";
-                std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
-                return ERROR;
-            }
-
-            // std::cout << "Time: " << calibration_trajectory.times[i] << "s" << std::endl;
-            // std::cout << "Target position: " << calibration_trajectory.poses[i].position.transpose() << std::endl;
-            i++;
-        }        
-
-        // Check if the limit switches have activated
-        while (lcm.handleTimeout(0) == 1) {};
-
-        // bool result;
-        bool all_flag = false; // If all switches have been tripped 
-        auto result = lcm_handler.checkSwitchState(switch_states, all_flag); 
-
-        printf("[INFO] Checked switch state, result %d, states [%d, %d, %d]\n:",
-            result, switch_states[0], switch_states[1], switch_states[2]); 
-        std::cout << std::flush; 
-
-        if ( all_flag ) 
-        {
-            // New message 
-            std::cout << "[INFO] New switch state: [ " << switch_states[0]; 
-            std::cout << ", " << switch_states[1]; 
-            std::cout << ", " << switch_states[2]; 
-            std::cout << "]" << std::endl; 
-
-            // If all activated, stop 
-            if ( all_flag )  
-            {
-                switches_activated = true; 
-                break; 
-            }
-        }
-    }
-    
-    // Set calibration offset for the Stewart platform
-    while (lcm.handleTimeout(0) == 1); 
-    if (switches_activated)
+    // Phase 2: Lower platform until limit switches activate
+    bool switches_activated = false;
+    if (!descendUntilSwitchActivation(switches_activated))
     {
-        // At switch activation, physical servo angle is known to be -41.58 deg.
-        // Offset = physical - commanded, applied in publishServoTargets().
-        float servo_angs[6] = {0};
-        std::array<float, NUM_SERVOS> offsets;
-
-        lcm.handleTimeout(10);
-        if ( lcm_handler.checkServoAngs(servo_angs) ) {
-
-            // Find the calibration offsets 
-            for (int i = 0; i < NUM_SERVOS; i++)
-                // Offset in radians 
-                offsets[i] = PHYSICAL_ANGLE_AT_ACTIVATION - servo_angs[i]; // * M_PI / 180.0f; 
-        }
-        else {
-            std::cout << "[WARNING] Failed to get calibration angles" << std::endl << std::flush; 
-        }
-
-        // Set the offsets (defaults to zero)
-        platform.setCalibrationOffsets(offsets); 
-        std::cout << "[INFO] Calibration offsets set." << std::endl;
+        std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+        return ERROR;
     }
-    else 
-    {
-        std::cout << "[ERROR] Servo calibration procedure did not find state with all switches activated." << std::endl;
-        // std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
-        // return ERROR;
-    }
+
+    // Set calibration offsets from the switch activation position
+    applyCalibrationOffsets(switches_activated);
 
     // Automatically transition to camera calibration when the servos are calibrated
     std::cout << "[INFO] Payload controller state set to CALIBRATE_CAMERA." << std::endl;
@@ -547,6 +412,162 @@ state_t PayloadController::handleDebugState()
     // Send back to idle for next OBC command
     std::cout << "[INFO] Payload controller state set to IDLE." << std::endl;
     return IDLE;
+}
+
+// --- Servo calibration helpers -----------------------------------------------
+
+// Moves the platform from its homed position (assumed start here) to the starting
+// position of the calibration. 
+bool PayloadController::moveToCalibrationStart()
+{
+    // Define extrema of the trajectory
+    PlatformPose rest_pose = PlatformPose{Vector3f::Zero(), Quaternionf::Identity()};
+    PlatformPose outward_start_pose = PlatformPose{Vector3f::Zero(), Quaternionf::Identity()};
+    rest_pose.position(2) = PLATFORM_REST_Z;
+    outward_start_pose.position(2) = CALIBRATION_START_Z;
+    std::vector<PlatformPose> outward_end_points = {rest_pose, outward_start_pose};
+
+    // Build the trajectory by interpolation
+    trajectory_t outward_trajectory;
+    if (interpolateTrajectory(outward_end_points, outward_trajectory, CALIBRATION_END_POINT_STEP, CALIBRATION_STRUCT_STEP) == false)
+    {
+        error.msg = "Could not generate outward calibration trajectory.";
+        return false;
+    }
+
+    // Move platform along trajectory
+    startTimer();
+    size_t j = 0;
+    while (j < outward_trajectory.times.size())
+    {
+        if (readTimer() >= outward_trajectory.times[j])
+        {
+            if (platform.moveTo(outward_trajectory.poses[j]) == false)
+            {
+                error.msg = "Could not move platform to starting pose during servo calibration.";
+                return false;
+            }
+            j++;
+        }
+    }
+
+    return true;
+}
+
+bool PayloadController::descendUntilSwitchActivation(bool& switches_activated)
+{
+    // Generate the start and end positions for the servo calibration trajectory
+    PlatformPose start_pose = PlatformPose{Vector3f::Zero(), Quaternionf::Identity()};
+    PlatformPose end_pose = PlatformPose{Vector3f::Zero(), Quaternionf::Identity()};
+    start_pose.position(2) = CALIBRATION_START_Z;
+    end_pose.position(2) = CALIBRATION_END_Z;
+    std::vector<PlatformPose> end_points = {start_pose, end_pose};
+
+    // Generate trajectory between extrema
+    trajectory_t calibration_trajectory;
+    if (interpolateTrajectory(end_points, calibration_trajectory, CALIBRATION_END_POINT_STEP, CALIBRATION_STRUCT_STEP) == false)
+    {
+        error.msg = "Could not generate inward calibration trajectory.";
+        return false;
+    }
+
+    // Start timing calibration
+    startTimer();
+
+    // Lower platform along trajectory until limit switches activate
+    int switch_states[3] = {0};
+    switches_activated = false;
+
+    size_t i = 0;
+    while (true)
+    {
+        // Exit when finished trajectory
+        if (i == calibration_trajectory.times.size())
+        {
+            break;
+        }
+
+        // Get the current time since calibration began
+        double calibration_time = readTimer();
+
+        // Move platform along trajectory
+        if (calibration_time >= calibration_trajectory.times[i])
+        {
+            if ( platform.moveTo(calibration_trajectory.poses[i]) == false )
+            {
+                error.msg = "Could not move platform to starting pose during servo calibration.";
+                return false;
+            }
+
+            // std::cout << "Time: " << calibration_trajectory.times[i] << "s" << std::endl;
+            // std::cout << "Target position: " << calibration_trajectory.poses[i].position.transpose() << std::endl;
+            i++;
+        }
+
+        // Check if the limit switches have activated
+        while (lcm.handleTimeout(0) == 1) {};
+
+        // bool result;
+        bool all_flag = false; // If all switches have been tripped
+        auto result = lcm_handler.checkSwitchState(switch_states, all_flag);
+
+        printf("[INFO] Checked switch state, result %d, states [%d, %d, %d]\n:",
+            result, switch_states[0], switch_states[1], switch_states[2]);
+        std::cout << std::flush;
+
+        if ( all_flag )
+        {
+            // New message
+            std::cout << "[INFO] New switch state: [ " << switch_states[0];
+            std::cout << ", " << switch_states[1];
+            std::cout << ", " << switch_states[2];
+            std::cout << "]" << std::endl;
+
+            // If all activated, stop
+            if ( all_flag )
+            {
+                switches_activated = true;
+                break;
+            }
+        }
+    }
+
+    return true;
+}
+
+void PayloadController::applyCalibrationOffsets(bool switches_activated)
+{
+    // Set calibration offset for the Stewart platform
+    while (lcm.handleTimeout(0) == 1);
+    if (switches_activated)
+    {
+        // At switch activation, physical servo angle is known to be -41.58 deg.
+        // Offset = physical - commanded, applied in publishServoTargets().
+        float servo_angs[6] = {0};
+        std::array<float, NUM_SERVOS> offsets;
+
+        lcm.handleTimeout(10);
+        if ( lcm_handler.checkServoAngs(servo_angs) ) {
+
+            // Find the calibration offsets
+            for (int i = 0; i < NUM_SERVOS; i++)
+                // Offset in radians
+                offsets[i] = PHYSICAL_ANGLE_AT_ACTIVATION - servo_angs[i]; // * M_PI / 180.0f;
+        }
+        else {
+            std::cout << "[WARNING] Failed to get calibration angles" << std::endl << std::flush;
+        }
+
+        // Set the offsets (defaults to zero)
+        platform.setCalibrationOffsets(offsets);
+        std::cout << "[INFO] Calibration offsets set." << std::endl;
+    }
+    else
+    {
+        std::cout << "[ERROR] Servo calibration procedure did not find state with all switches activated." << std::endl;
+        // std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+        // return ERROR;
+    }
 }
 
 // --- Trajectory tracking -----------------------------------------------------
@@ -948,6 +969,20 @@ bool PayloadController::waitForPose(const long int timeout)
 //         usleep(1000);
 //     }
 // }
+
+// --- Timer -------------------------------------------------------------------
+
+void PayloadController::startTimer()
+{
+    timer_start = std::chrono::steady_clock::now();
+}
+
+// Returns the time since startTimer() was called in milliseconds
+float PayloadController::readTimer()
+{
+    return std::chrono::duration<float, std::milli>(
+        std::chrono::steady_clock::now() - timer_start).count();
+}
 
 // --- LCM publisher methods ---------------------------------------------------
 
