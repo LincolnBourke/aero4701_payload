@@ -548,13 +548,12 @@ bool PayloadController::trackTrajectoryStep(bool &trajectory_complete)
     while (experiment_time >= trajectory.times[trajectory_step] && trajectory_step < trajectory.times.size())
     {
         // Display the target pose for debugging
-        std::cout << "[INFO] Moving to target pose:" 
-            << " position: " << trajectory.poses[trajectory_step].position.transpose() << ","
-            << " orientation: [" << trajectory.poses[trajectory_step].orientation.x() << ", "
-            << trajectory.poses[trajectory_step].orientation.y() << ", "
-            << trajectory.poses[trajectory_step].orientation.z() << ", "
-            << trajectory.poses[trajectory_step].orientation.w() << "]" << std::endl;
-        
+        // std::cout << "[INFO] Moving to target pose:" 
+        //     << " position: " << trajectory.poses[trajectory_step].position.transpose() << ","
+        //     << " orientation: [" << trajectory.poses[trajectory_step].orientation.x() << ", "
+        //     << trajectory.poses[trajectory_step].orientation.y() << ", "
+        //     << trajectory.poses[trajectory_step].orientation.z() << ", "
+        //     << trajectory.poses[trajectory_step].orientation.w() << "]" << std::endl;
         
         if (platform.moveTo(trajectory.poses[trajectory_step]) == false)
         {

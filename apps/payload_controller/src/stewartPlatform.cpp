@@ -1,5 +1,6 @@
 #include "stewartPlatform.hpp"
 #include "servo_targets_t.hpp"
+#include "platform_target_t.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -91,6 +92,9 @@ bool StewartPlatform::moveTo(const PlatformPose &target_pose)
     // Attempt to calculate the servo targets for the pose target
     if (computeServoTargets(true) == false)
         return false;
+
+    // Publish new platform pose for debugging GUI
+    publishPlatformTarget(target_pose);
 
     // Publish targets for servo controller to use
     publishServoTargets();
@@ -504,14 +508,31 @@ void StewartPlatform::publishServoTargets()
     }
 
     // Print the channel and each servo angle being published
-    std::cout << "[INFO] Publishing to SERVO_TARGETS: ";
-    for (int i = 0; i < NUM_SERVOS; i++)
-    {
-        std::cout << msg.angles[i] * 180/M_PI << " ";
-    }
-    std::cout << std::endl;
+    // std::cout << "[INFO] Publishing to SERVO_TARGETS: ";
+    // for (int i = 0; i < NUM_SERVOS; i++)
+    // {
+    //     std::cout << msg.angles[i] * 180/M_PI << " ";
+    // }
+    // std::cout << std::endl;
 
     lcm.publish("SERVO_TARGETS", &msg);
+}
+
+void StewartPlatform::publishPlatformTarget(const PlatformPose& target_pose)
+{
+    payload_messages::platform_target_t msg;
+
+    msg.position[0] = target_pose.position[0];
+    msg.position[1] = target_pose.position[1];
+    msg.position[2] = target_pose.position[2];
+
+    // Extract roll, pitch, yaw (ZYX convention)
+    Vector3f euler = target_pose.orientation.toRotationMatrix().eulerAngles(2, 1, 0);
+    msg.orientation[0] = euler[2]; // roll
+    msg.orientation[1] = euler[1]; // pitch
+    msg.orientation[2] = euler[0]; // yaw
+
+    lcm.publish("PLATFORM_TARGET", &msg);
 }
 
 void StewartPlatform::setCalibrationOffsets(const std::array<float, NUM_SERVOS>& offsets)
