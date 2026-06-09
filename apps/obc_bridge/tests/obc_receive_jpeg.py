@@ -57,16 +57,31 @@ def receive_jpeg(port: serial.Serial, output_jpeg_path: str):
     print(f"[OBC] Expecting {num_packets} packets (file_id={file_id}, chunk_size={chunk_size})")
     port.write(build_ack(PYLD_TRANSFER_HEADER_ID))
 
-    # Step 3: receive each packet, ack, collect data bytes (strip 2-byte index prefix)
+    # Step 3: receive each packet, ack, collect data bytes (strip 2-byte index prefix).
+    # Handles retransmits: if the payload doesn't receive an ACK it will resend the last
+    # packet, so re-ACK any duplicate without storing it and keep waiting.
     raw_chunks = []
-    for i in range(num_packets):
+    received = 0
+    while received < num_packets:
         result = recv_msg(port)
-        assert result and result[0] == PYLD_PACKET_ID, f"Expected PACKET_ID for packet {i}"
+        if not result:
+            print(f"[OBC ERROR] Timeout waiting for packet {received}")
+            break
+        if result[0] != PYLD_PACKET_ID:
+            print(f"[OBC ERROR] Expected PACKET_ID (0x{PYLD_PACKET_ID:02X}), got id=0x{result[0]:02X}")
+            break
         index = struct.unpack('<H', result[1][:2])[0]
-        assert index == i, f"Sequence error: expected {i}, got {index}"
-        raw_chunks.append(bytes(result[1][2:]))
-        port.write(build_ack(PYLD_PACKET_ID))
-        print(f"[OBC] Packet {i + 1}/{num_packets} received")
+        if index == received:
+            raw_chunks.append(bytes(result[1][2:]))
+            port.write(build_ack(PYLD_PACKET_ID))
+            received += 1
+            print(f"[OBC] Packet {received}/{num_packets} received")
+        elif index < received:
+            print(f"[OBC WARN] Duplicate packet index {index} (expected {received}), re-ACKing")
+            port.write(build_ack(PYLD_PACKET_ID))
+        else:
+            print(f"[OBC ERROR] Sequence gap: expected {received}, got {index}")
+            break
 
     # Step 4: wait for TRANSFER_COMPLETE, send TRANSFER_COMPLETE_ACK
     result = recv_msg(port)

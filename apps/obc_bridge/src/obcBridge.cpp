@@ -147,7 +147,10 @@ ObcBridgeState ObcBridge::handleReceiveSettingsState()
                     if (!obc_messager.isReceiveComplete())
                         state = ReceiveSettingsState::WAIT_PACKET;
                     else
+                    {
+                        std::cout << "[INFO] All packets received. Waiting for transfer complete signal." << std::endl;
                         state = ReceiveSettingsState::WAIT_TRANSFER_COMPLETE;
+                    }
                 }
                 break;
 
@@ -160,6 +163,8 @@ ObcBridgeState ObcBridge::handleReceiveSettingsState()
                     // Deserialise received packets into trajectory and scalar settings files
                     if (!obc_messager.deserialise(TRAJECTORY_SETTINGS_FILEPATH, SCALAR_SETTINGS_FILEPATH))
                         std::cout << "[ERROR] Failed to deserialise received settings file." << std::endl;
+                    else
+                        std::cout << "[INFO] Settings received and deserialised successfully." << std::endl;
 
                     return ObcBridgeState::IDLE;
                 }
@@ -230,6 +235,7 @@ ObcBridgeState ObcBridge::runTransmitStateMachine()
     TransmitResultState state = TransmitResultState::REQUEST_TRANSFER;
     float ack_timeout = ACK_TIMEOUT;
     bool transmit_success;
+    int packet_num = 0;
 
     while (true)
     {
@@ -239,6 +245,7 @@ ObcBridgeState ObcBridge::runTransmitStateMachine()
         switch (state)
         {
             case TransmitResultState::REQUEST_TRANSFER:
+                std::cout << "[INFO] Sending transfer request to OBC." << std::endl;
                 transmit_success = obc_messager.transmit(PYLD_REQUEST_TRANSFER_ID);
                 if (!transmit_success)
                 {
@@ -254,10 +261,14 @@ ObcBridgeState ObcBridge::runTransmitStateMachine()
                 if (obc_messager.checkAck(PYLD_REQUEST_TRANSFER_ID) == true)
                     state = TransmitResultState::SEND_HEADER;
                 else if (readTime() > ack_timeout)
+                {
+                    std::cout << "[WARN] No ACK for transfer request, retransmitting." << std::endl;
                     state = TransmitResultState::REQUEST_TRANSFER;
+                }
                 break;
 
             case TransmitResultState::SEND_HEADER:
+                std::cout << "[INFO] Sending transfer header to OBC." << std::endl;
                 transmit_success = obc_messager.transmitHeader();
                 if (!transmit_success)
                 {
@@ -273,14 +284,19 @@ ObcBridgeState ObcBridge::runTransmitStateMachine()
                 if (obc_messager.checkAck(PYLD_TRANSFER_HEADER_ID) == true)
                     state = TransmitResultState::SEND_PACKET;
                 else if (readTime() > ack_timeout)
+                {
+                    std::cout << "[WARN] No ACK for transfer header, retransmitting." << std::endl;
                     state = TransmitResultState::SEND_HEADER;
+                }
                 break;
 
             case TransmitResultState::SEND_PACKET:
+                std::cout << "[INFO] Sending packet " << (packet_num + 1) << "." << std::endl;
                 transmit_success = obc_messager.transmitResultsPacket();
                 if (!transmit_success)
                 {
-                    std::cout << "[ERROR] Failed to transmit results packet to OBC, retrying after timeout..." << std::endl;
+                    std::cout << "[ERROR] Failed to transmit packet " << (packet_num + 1)
+                              << " to OBC, retrying after timeout." << std::endl;
                 }
 
                 startTimer();
@@ -290,6 +306,7 @@ ObcBridgeState ObcBridge::runTransmitStateMachine()
             case TransmitResultState::WAIT_PACKET_ACK:
                 if (obc_messager.checkAck(PYLD_PACKET_ID) == true)
                 {
+                    packet_num++;
                     if (!obc_messager.isTransmitQueueEmpty())
                         state = TransmitResultState::SEND_PACKET;
                     else
@@ -297,13 +314,15 @@ ObcBridgeState ObcBridge::runTransmitStateMachine()
                 }
                 else if (readTime() > ack_timeout)
                 {
-                    // Retry the last packet
+                    std::cout << "[WARN] No ACK for packet " << packet_num + 1
+                              << ", retransmitting." << std::endl;
                     obc_messager.transmitLastResultsPacket();
                     startTimer();
                 }
                 break;
 
             case TransmitResultState::TRANSFER_COMPLETE:
+                std::cout << "[INFO] All " << packet_num << " packets sent. Sending transfer complete." << std::endl;
                 transmit_success = obc_messager.transmit(PYLD_TRANSFER_COMPLETE_ID);
                 if (!transmit_success)
                 {
@@ -316,9 +335,13 @@ ObcBridgeState ObcBridge::runTransmitStateMachine()
 
             case TransmitResultState::TRANSFER_COMPLETE_ACK:
                 if (obc_messager.checkAck(PYLD_TRANSFER_COMPLETE_ID) == true)
+                {
+                    std::cout << "[INFO] Transfer complete, ACK received." << std::endl;
                     return ObcBridgeState::IDLE;
+                }
                 else if (readTime() > ack_timeout)
                 {
+                    std::cout << "[WARN] No ACK for transfer complete, retransmitting." << std::endl;
                     obc_messager.transmit(PYLD_TRANSFER_COMPLETE_ID);
                     startTimer();
                 }

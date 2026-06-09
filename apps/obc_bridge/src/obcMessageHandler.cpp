@@ -112,6 +112,8 @@ bool ObcMessageHandler::checkHeader()
     memcpy(&chunk_size, &last_message_read.payload[1], sizeof(uint32_t));
     memcpy(&num_chunks, &last_message_read.payload[5], sizeof(uint32_t));
     num_expected_msgs = static_cast<uint16_t>(num_chunks);
+    std::cout << "[INFO] Transfer header received: file_id=" << (int)file_id
+              << " chunk_size=" << chunk_size << " num_chunks=" << num_chunks << std::endl;
     return true;
 }
 
@@ -135,12 +137,14 @@ bool ObcMessageHandler::checkPacket()
             file_receive_buffer.push_back(*it);
             receive_queue.erase(it);
             msg_counter++;
+            std::cout << "[INFO] Received packet " << msg_counter << " / " << num_expected_msgs << std::endl;
             return true;
         }
         else if (index < msg_counter)
         {
             // OBC retransmit: this packet was already stored, our ack was lost.
             // Remove and return true so the state machine acks again and OBC advances.
+            std::cout << "[WARN] Duplicate packet " << index << " (already received), re-ACKing." << std::endl;
             receive_queue.erase(it);
             return true;
         }
@@ -274,6 +278,8 @@ bool ObcMessageHandler::deserialise(std::string trajectory_path, std::string set
                   << sat_attitude[0] << "," << sat_attitude[1] << "," << sat_attitude[2] << "\n";
     settings_file.close();
 
+    std::cout << "[INFO] Settings deserialised: trajectory -> '" << trajectory_path
+              << "', scalars -> '" << settings_path << "'." << std::endl;
     return true;
 }
 
@@ -422,10 +428,12 @@ bool ObcMessageHandler::serialiseResults(std::string file_path)
     uint8_t  file_id    = 0;
     uint32_t num_chunks = static_cast<uint32_t>(num_msgs);
     memcpy(&results_header.payload[0], &file_id,        sizeof(uint8_t));
-    memcpy(&results_header.payload[1], &max_chunk_size, sizeof(uint32_t)); 
+    memcpy(&results_header.payload[1], &max_chunk_size, sizeof(uint32_t));
     memcpy(&results_header.payload[5], &num_chunks,     sizeof(uint32_t));
     results_header.length = sizeof(uint8_t) + sizeof(uint32_t) + sizeof(uint32_t);
 
+    std::cout << "[INFO] Serialised " << num_msgs << " packets (max_chunk_size=" << max_chunk_size
+              << ") from '" << file_path << "'." << std::endl;
     return true;
 }
 

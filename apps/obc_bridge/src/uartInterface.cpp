@@ -153,9 +153,12 @@ bool UartInterface::receive(UART_msg_t* msg, uint32_t timeout_us)
                 {
                     if (UART_checkCRC(msg))
                     {
-                        std::cout << "[INFO] Message received over UART." << std::endl;
+                        std::cout << "[INFO] UART rx: id=0x" << std::hex << std::uppercase
+                                  << (int)msg->id << std::dec << " len=" << (int)msg->length << std::endl;
                         return true;
                     }
+                    std::cout << "[WARN] UART rx: CRC mismatch on id=0x" << std::hex << std::uppercase
+                              << (int)msg->id << std::dec << ", dropping." << std::endl;
                 }
                 break;
             }
@@ -208,7 +211,8 @@ bool UartInterface::transmit(UART_msg_t* msg)
         return false;
     }
 
-    std::cout << "[INFO] Message transmitted over UART." << std::endl;
+    std::cout << "[INFO] UART tx: id=0x" << std::hex << std::uppercase
+              << (int)msg->id << std::dec << " len=" << (int)msg->length << std::endl;
     return true;
 }
 
