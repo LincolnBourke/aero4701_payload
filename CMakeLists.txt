@@ -21,13 +21,14 @@ unset(CMAKE_WARN_DEPRECATED CACHE)
 
 # lcm_add_library(payload_messages_lcm CPP lcm_messages/payloadMessages.lcm)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/lcm_messages)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/config)
 
 add_subdirectory(apps/payload_controller)
 add_subdirectory(apps/servo_controller)
 add_subdirectory(apps/servo_monitor)
 add_subdirectory(apps/servo_state_reader)
 add_subdirectory(apps/camera)
-# add_subdirectory(apps/limit_switches)
+add_subdirectory(apps/limit_switches)
 add_subdirectory(apps/obc_bridge)
 add_subdirectory(apps/switch_monitor)
 

@@ -503,6 +503,7 @@ void StewartPlatform::publishServoTargets()
         msg.angles[i] = servo_targets[i];// + calibration_offsets[i];
     }
 
+
     // Print the channel and each servo angle being published
     std::cout << "[INFO] Publishing to SERVO_TARGETS: ";
     for (int i = 0; i < NUM_SERVOS; i++)

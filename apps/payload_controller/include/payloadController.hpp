@@ -12,6 +12,8 @@
 #include "switch_state_t.hpp"
 #include "payload_cont_to_cam_msg_t.hpp"
 
+#include "payloadConfig.hpp"
+
 #include <lcm/lcm-cpp.hpp>
 #include <string>
 #include <vector>
@@ -51,7 +53,7 @@ typedef struct {
 class PayloadController
 {
     private:
-        // LCM interface
+        // LCM interface for general commands
         lcm::LCM lcm;
         LcmHandler lcm_handler;
 
@@ -75,6 +77,11 @@ class PayloadController
         // The time for which the experiment or servo calibration procedure has been running
         std::chrono::time_point<std::chrono::steady_clock> experiment_start_time;
         std::chrono::time_point<std::chrono::steady_clock> calibration_start_time;
+
+        // Servo feedback across the length of the trajectory
+        // Emptied at start of an experiment and populated by the end
+        std::vector<std::array<float, NUM_SERVOS>> servo_feedback;
+        std::chrono::time_point<std::chrono::steady_clock> last_feedback_sample_time;
 
         // Reads raw poses from the trajectory file into raw_poses.
         // Return value indicates if the file was found and read successfully.

@@ -1,12 +1,11 @@
 #include "obcMessageHandler.hpp"
+#include "payloadConfig.hpp"
 
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <iomanip>
 #include <cstring>
-
-#define RESULT_TIMESTEPS 150
 
 ObcMessageHandler::ObcMessageHandler()
     : uart_interface(), last_message_read(), receive_queue(), transmit_queue(),
@@ -176,8 +175,8 @@ void ObcMessageHandler::clearFileBuffer()
 // --- Message deserialising ---------------------------------------------------
 
 // Deserialise the file receive buffer into a trajectory CSV and a scalar settings CSV.
-// Binary schema (in order): frame_rate, threshold, exposure, RESULT_TIMESTEPS x position[3],
-// RESULT_TIMESTEPS x attitude[3] (degrees), satellite_attitude[3] (degrees).
+// Binary schema (in order): frame_rate, threshold, exposure, NUM_TIMESTEPS x position[3],
+// NUM_TIMESTEPS x attitude[3] (degrees), satellite_attitude[3] (degrees).
 bool ObcMessageHandler::deserialise(std::string trajectory_path, std::string settings_path)
 {
     // Flatten all packet payloads into a single byte stream,
@@ -208,11 +207,11 @@ bool ObcMessageHandler::deserialise(std::string trajectory_path, std::string set
         return false;
     }
 
-    // Parse RESULT_TIMESTEPS platform positions and attitudes (separate blocks in the stream)
-    float positions[RESULT_TIMESTEPS][3];
-    float attitudes[RESULT_TIMESTEPS][3];
+    // Parse NUM_TIMESTEPS platform positions and attitudes (separate blocks in the stream)
+    float positions[NUM_TIMESTEPS][3];
+    float attitudes[NUM_TIMESTEPS][3];
 
-    for (int i = 0; i < RESULT_TIMESTEPS; i++)
+    for (int i = 0; i < NUM_TIMESTEPS; i++)
     {
         for (int j = 0; j < 3; j++)
         {
@@ -224,7 +223,7 @@ bool ObcMessageHandler::deserialise(std::string trajectory_path, std::string set
         }
     }
 
-    for (int i = 0; i < RESULT_TIMESTEPS; i++)
+    for (int i = 0; i < NUM_TIMESTEPS; i++)
     {
         for (int j = 0; j < 3; j++)
         {
@@ -256,7 +255,7 @@ bool ObcMessageHandler::deserialise(std::string trajectory_path, std::string set
         return false;
     }
 
-    for (int i = 0; i < RESULT_TIMESTEPS; i++)
+    for (int i = 0; i < NUM_TIMESTEPS; i++)
     {
         traj_file << positions[i][0] << "," << positions[i][1] << "," << positions[i][2] << ","
                   << attitudes[i][0] << "," << attitudes[i][1] << "," << attitudes[i][2] << "\n";
@@ -347,7 +346,7 @@ bool ObcMessageHandler::serialiseResults(std::string file_path)
         ss.clear();
         ss.str(line);
 
-        if (line_num < 3 * RESULT_TIMESTEPS)
+        if (line_num < 3 * NUM_TIMESTEPS)
         {
             // Float rows: servo angles (0-149), camera position (150-299), camera attitude (300-449)
             while (std::getline(ss, raw_entry, ','))

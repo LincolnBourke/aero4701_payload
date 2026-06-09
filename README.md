@@ -53,6 +53,33 @@ python apps/<app_name>/<entry_point>.py
 ```
 
 
+## Nominal Operation
+
+First set up for the camera node: 
+
+```bash 
+source ~/.bashrc 
+cd aero4701_payload/
+source venv/bin/activate
+```
+
+The following apps need to run during nominal operation of the payload: 
+
+```bash 
+python apps/camera/src/cameraMaster.py
+./build/apps/switch_monitor/switch_monitor
+./build/apps/servo_state_reader/servo_state_reader
+./build/apps/servo_controller/servo_controller
+./build/apps/payload_controller/payload_controller
+./build/apps/obc_bridge/obc_bridge
+```
+
+To run without an instruction from the OBC: 
+
+```bash
+./build/apps/payload_controller/run_controller
+```
+
 ## OBC–Payload UART Communication Tests
 
 These tests validate UART communication between the payload computer and OBC on Ubuntu using `socat` virtual serial ports. The C++ binary always plays the **payload role**; the Python scripts always play the **OBC role**.
@@ -202,6 +229,51 @@ diff data/test_obc_debug/debug_mode_focus.jpeg data/test_obc_debug/debug_mode_fo
 Expected: no difference (JPEG is transmitted as raw bytes with no conversion).
 
 
+
+## Servo Feedback CSV Test (No Hardware)
+
+Tests that servo angle feedback is sampled correctly during a run and written to the results CSV, without requiring physical hardware. Three dummy publishers replace the hardware and camera dependencies.
+
+Start the dummies before the controller.
+
+**Terminal 1 — servo angle feed:**
+```bash
+./build/apps/payload_controller/dummy_servo_state
+```
+
+**Terminal 2 — limit switch bypass (exits calibration immediately):**
+```bash
+./build/apps/payload_controller/dummy_limit_switches
+```
+
+**Terminal 3 — camera response bypass:**
+```bash
+./build/apps/payload_controller/dummy_camera_response
+```
+
+**Terminal 4 — payload controller (system under test):**
+```bash
+./build/apps/payload_controller/payload_controller
+```
+
+**Terminal 5 — send run command to start:**
+```bash
+./build/apps/payload_controller/run_controller
+```
+
+Watch Terminal 4 for the state progression: IDLE → READ_TRAJECTORY → CALIBRATE_SERVOS → CALIBRATE_CAMERA → DEPLOY → RUNNING → SAVE_RESULTS → IDLE.
+
+### Verification
+
+After the run completes, inspect the results CSV:
+
+```bash
+cat outputs/boot_000/experiment_results/experiment_results.csv
+```
+
+Expected: one row per 200 ms sample during RUNNING state, 6 comma-separated values per row, all in the range ~22–68° (sinusoidal dummy signal). The controller also prints `[INFO] Servo feedback samples: N` during SAVE_RESULTS.
+
+---
 
 ## Camera-Payload Controller Tests
 
