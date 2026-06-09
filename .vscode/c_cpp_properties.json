@@ -12,6 +12,7 @@
                 "${workspaceFolder}/apps/obc_bridge/include",
                 "${workspaceFolder}/lcm_messages",
                 "${workspaceFolder}/lcm_messages/payload_messages",
+                "${workspaceFolder}/config",
                 "/usr/include",
                 "/usr/include/eigen3"
             ],
