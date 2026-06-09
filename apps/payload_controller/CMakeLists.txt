@@ -48,6 +48,31 @@ target_link_libraries(run_controller PRIVATE
     PkgConfig::lcm
 )
 
+add_executable(dummy_servo_state
+    tests/publishDummyServoState.cpp
+)
+target_include_directories(dummy_servo_state PRIVATE
+    ${CMAKE_SOURCE_DIR}/lcm_messages/payload_messages
+)
+target_link_libraries(dummy_servo_state PRIVATE PkgConfig::lcm)
+
+add_executable(dummy_limit_switches
+    tests/publishDummyLimitSwitches.cpp
+)
+target_include_directories(dummy_limit_switches PRIVATE
+    ${CMAKE_SOURCE_DIR}/lcm_messages/payload_messages
+)
+target_link_libraries(dummy_limit_switches PRIVATE PkgConfig::lcm)
+
+add_executable(dummy_camera_response
+    tests/publishDummyCameraResponse.cpp
+)
+target_include_directories(dummy_camera_response PRIVATE
+    ${CMAKE_SOURCE_DIR}/lcm_messages
+    ${CMAKE_SOURCE_DIR}/lcm_messages/payload_messages
+)
+target_link_libraries(dummy_camera_response PRIVATE PkgConfig::lcm)
+
 
 add_executable(camera_payload_controller
     src/main.cpp

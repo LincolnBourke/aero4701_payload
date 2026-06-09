@@ -6,10 +6,10 @@
 #include <sstream>
 #include <filesystem>
 
+#include "payloadConfig.hpp"
+
 #define TRAJECTORY_FILE_STEP 200 // ms, time between successive poses in the trajectory file
 #define TRAJECTORY_STRUCT_STEP 50 // ms, time between successive poses in the trajectory struct
-#define TRAJECTORY_FILE_PATH "data/docking_trajectory.csv"
-#define RESULTS_FILEPATH        "data/test_obc_nominal/results.csv"
 
 static const char* CH_CONT_TO_CAM = "PAYLOAD_CAM";   // controller --> camera
 static const char* CH_CAM_TO_CONT = "CAM_PAYLOAD";   // camera --> controller
@@ -33,6 +33,8 @@ static const bool DEBUG_MODE = true;
 #define DEPLOY_MAX_LINEAR_VEL_MM_S   2.0f  // mm/s, max translation speed during deployment
 #define DEPLOY_MAX_ANGULAR_VEL_RAD_S 0.05f  // rad/s, max rotation speed during deployment
 
+#define SERVO_FEEDBACK_INTERVAL_MS 200 // ms between servo feedback samples during experiment
+
 // Angle of the servos when switches activated 
     // Obtained from CAD 
 constexpr float PHYSICAL_ANGLE_AT_ACTIVATION = -41.58f * M_PI / 180.0f;
@@ -45,7 +47,7 @@ PayloadController::PayloadController()
 
     if (!lcm.good())
     {
-        std::cout << "[ERROR] Payload LCM object not good." << std::endl;
+        std::cout << "[ERROR] LCM object not good." << std::endl;
     }
 
     // Subscribe lcm handler to messages
@@ -53,12 +55,10 @@ PayloadController::PayloadController()
     lcm.subscribe("SAVE_COMPLETE", &LcmHandler::handleSaveComplete, &lcm_handler);
     lcm.subscribe("LIMIT_SWITCH_STATES", &LcmHandler::handleSwitchStateMsg, &lcm_handler);
     lcm.subscribe("SERVO_STATE", &LcmHandler::handleServoStateMsg, &lcm_handler);
+    lcm.subscribe(CH_CAM_TO_CONT, &LcmHandler::handleCamMsg, &lcm_handler);
 
     // Clear LCM messages 
-    while (lcm.handleTimeout(0) == 1); 
-    
-    // Added camera to controller channel
-    lcm.subscribe(CH_CAM_TO_CONT, &LcmHandler::handleCamMsg, &lcm_handler);
+    while (lcm.handleTimeout(0) == 1);     
 };
 
 PayloadController::~PayloadController(){};
@@ -70,6 +70,8 @@ void PayloadController::run()
     
     while (true)
     {
+        while (lcm.handleTimeout(0) > 0); // drain all pending messages once per tick
+
         switch (state)
         {
         case IDLE:
@@ -115,7 +117,6 @@ state_t PayloadController::handleIdleState()
     int command_id; 
 
     // Check if a run command has been published
-    lcm.handleTimeout(0);
     if (lcm_handler.checkRunCommand(command_id))
     {
         // Only move to setup when start command received
@@ -153,7 +154,8 @@ state_t PayloadController::handleReadTrajectoryState()
     }
     std::cout << "[INFO] Deploy trajectory built." << std::endl;
 
-    // TODO check if will need a sleep for python
+    // Sleep so python can catch up
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
     // Automatically transition to servo calibration when the trajectory can be read
     std::cout << "[INFO] Payload controller state set to CALIBRATE_SERVOS." << std::endl;
@@ -216,7 +218,6 @@ state_t PayloadController::handleDeployState()
     }
 
     // Check if a message has been published to stop the experiment early
-    lcm.handleTimeout(0);
     if (lcm_handler.checkRunCommand(command_id))
     {
         if (command_id == Commands::RunId::STOP_CONTROLLER)
@@ -226,7 +227,7 @@ state_t PayloadController::handleDeployState()
         }
     }
 
-    // Check if the platform is fully deployed 
+    // Check if the platform is fully deployed
     if (platform_deployed == true)
     {
         std::cout << "[INFO] Payload controller state set to RUNNING." << std::endl;
@@ -260,12 +261,15 @@ state_t PayloadController::handleRunningState()
     {
         // Give camera python script a second to catch up
         std::cout << "[INFO] Publish RUNNING to camera" << std::endl;
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
         publishCameraCommand(RUNNING, DEBUG_MODE);
 
-        // Start timing after sleep so trajectory does not jump due to rapid initial
-        // servo movement to catch up with the time in the struct
+        // Start timing experiment
         experiment_start_time = std::chrono::steady_clock::now(); 
+
+        // Start timing servo feedback sample gap
+        servo_feedback.clear();
+        last_feedback_sample_time = std::chrono::steady_clock::now();
     }
 
     // Make an incremental step to move the platform along the trajectory
@@ -276,8 +280,29 @@ state_t PayloadController::handleRunningState()
         return ERROR;
     }
 
+    // Delay so servo feedback has time to arrive after the command
+    usleep(5000);
+
+    // Sample servo feedback at SERVO_FEEDBACK_INTERVAL_MS intervals (150 samples over 30s)
+    std::chrono::time_point<std::chrono::steady_clock> now = std::chrono::steady_clock::now();
+    long ms_since_sample = std::chrono::duration_cast<std::chrono::milliseconds>(
+        now - last_feedback_sample_time).count();
+
+    if (ms_since_sample >= SERVO_FEEDBACK_INTERVAL_MS && servo_feedback.size() < NUM_TIMESTEPS)
+    {
+        while (lcm.handleTimeout(0) > 0); // flush messages that arrived during usleep
+        float raw_angs[6];
+        if (lcm_handler.checkServoAngs(raw_angs))
+        {
+            std::array<float, NUM_SERVOS> sample;
+            for (int i = 0; i < NUM_SERVOS; i++)
+                sample[i] = raw_angs[i] * 180.0f / M_PI;
+            servo_feedback.push_back(sample);
+            last_feedback_sample_time += std::chrono::milliseconds(SERVO_FEEDBACK_INTERVAL_MS);
+        }
+    }
+
     // Check if a message has been published to stop the experiment early
-    lcm.handleTimeout(0);
     if (lcm_handler.checkRunCommand(command_id))
     {
         if (command_id == Commands::RunId::STOP_CONTROLLER)
@@ -299,9 +324,6 @@ state_t PayloadController::handleRunningState()
 
 state_t PayloadController::handleSaveResultsState()
 {
-    // Need 1s buffer for camera python to be ready
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-
     // Create a results file and save the servo angles across the trajectory
     // TODO
     // Suggested from Ollie - use this as base for code to save into experiment_results, then I will append to same file in camera python
@@ -331,8 +353,17 @@ state_t PayloadController::handleSaveResultsState()
         std::cout << "[ERROR] Failed to open results file." << std::endl;
         return ERROR;
     }
+
+
     // results_file << "tx,ty,tz,rx,ry,rz\n"; 
-    results_file << "0.0,0.0,0.0,0.0,0.0,0.0\n";
+    std::cout << "[INFO] Servo feedback samples: " << servo_feedback.size() << std::endl;
+    for (const std::array<float, NUM_SERVOS>& sample : servo_feedback)
+    {
+        for (int i = 0; i < NUM_SERVOS - 1; i++)
+            results_file << sample[i] << ",";
+        results_file << sample[NUM_SERVOS - 1] << "\n";
+    }
+
     results_file.close();
     
     // Publish SAVE_RESULTS state to camera
@@ -349,7 +380,7 @@ state_t PayloadController::handleSaveResultsState()
     // Copy across experiment results file to path for obc
     std::string src = results_dir + "/experiment_results.csv";
     std::string dst = RESULTS_FILEPATH;
-    std::filesystem::create_directories("data/test_obc_nominal");
+    std::filesystem::create_directories("data/results");
     try
     {
         std::filesystem::copy_file(src, dst, std::filesystem::copy_options::overwrite_existing);
@@ -411,6 +442,9 @@ state_t PayloadController::handleErrorState()
 
 state_t PayloadController::handleDebugState()
 {
+    // Sleep so Python can catch up 
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
     // Start camera node
     publishCameraCommand(DEBUG, DEBUG_MODE);
     

@@ -10,12 +10,8 @@
 #include <sstream>
 #include <filesystem>
 
-
 #define TRAJECTORY_FILE_STEP 500 // ms, time between successive poses in the trajectory file
 #define TRAJECTORY_STRUCT_STEP 250 // ms, time between successive poses in the trajectory struct
-#define TRAJECTORY_FILE_PATH "data/trajectory_simple.csv"
-#define RESULTS_FILEPATH        "data/test_obc_nominal/results.csv"
-
 
 static const char* CH_CONT_TO_CAM = "PAYLOAD_CAM";   // controller --> camera
 static const char* CH_CAM_TO_CONT = "CAM_PAYLOAD";   // camera --> controller
