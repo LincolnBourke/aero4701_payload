@@ -21,19 +21,25 @@ static const int CAM_WAIT_TIMEOUT_SAVE_MS = 40000;  // 30s for processing + 10s 
 
 // Automatically enters debug mode, no flag set - could be a comms from OBC?
 static const bool DEBUG_MODE = true;
+
+// Calibration state parameters
 #define CALIBRATION_END_POINT_STEP 5000 // ms
 #define CALIBRATION_STRUCT_STEP 50 // ms
 #define CALIBRATION_START_Z 5 // mm
 #define CALIBRATION_END_Z 0 // mm
 #define PLATFORM_REST_Z 1 // mm, assumed platform height at rest before calibration begins
 
+// Maximum deployment speeds
+#define DEPLOY_MAX_LINEAR_VEL_MM_S   2.0f  // mm/s, max translation speed during deployment
+#define DEPLOY_MAX_ANGULAR_VEL_RAD_S 0.05f  // rad/s, max rotation speed during deployment
+
 // Angle of the servos when switches activated 
     // Obtained from CAD 
 constexpr float PHYSICAL_ANGLE_AT_ACTIVATION = -41.58f * M_PI / 180.0f;
 
 PayloadController::PayloadController()
-    : lcm(), lcm_handler(), tol(5*M_PI/180), // tolerance of 5 degs  
-     error(), platform(), trajectory_step(0), experiment_start_time()
+    : lcm(), lcm_handler(), tol(5*M_PI/180), // tolerance of 5 degs
+     error(), platform(), trajectory_step(0), deploy_step(0), experiment_start_time()
 {
     trajectory_path = TRAJECTORY_FILE_PATH;
 
@@ -139,6 +145,14 @@ state_t PayloadController::handleReadTrajectoryState()
     }
     std::cout << "[INFO] Trajectory file parsed." << std::endl;
 
+    // Build the deployment trajectory from calibrated rest to the first trajectory point
+    if (buildDeployTrajectory() == false)
+    {
+        std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+        return ERROR;
+    }
+    std::cout << "[INFO] Deploy trajectory built." << std::endl;
+
     // TODO check if will need a sleep for python
 
     // Automatically transition to servo calibration when the trajectory can be read
@@ -228,9 +242,8 @@ state_t PayloadController::handleDeployState()
             return TERMINATE_RUN;
         }
 
-        experiment_start_time = std::chrono::steady_clock::now(); // Start timing experiment
         trajectory_step = 0; // Track trajectory from the start
-        
+
         return RUNNING; 
     }
 
@@ -249,6 +262,10 @@ state_t PayloadController::handleRunningState()
         std::cout << "[INFO] Publish RUNNING to camera" << std::endl;
         std::this_thread::sleep_for(std::chrono::seconds(1));
         publishCameraCommand(RUNNING, DEBUG_MODE);
+
+        // Start timing after sleep so trajectory does not jump due to rapid initial
+        // servo movement to catch up with the time in the struct
+        experiment_start_time = std::chrono::steady_clock::now(); 
     }
 
     // Make an incremental step to move the platform along the trajectory
@@ -483,9 +500,7 @@ bool PayloadController::descendUntilSwitchActivation(bool& switches_activated)
     {
         // Exit when finished trajectory
         if (i == calibration_trajectory.times.size())
-        {
             break;
-        }
 
         // Get the current time since calibration began
         double calibration_time = readTimer();
@@ -510,10 +525,10 @@ bool PayloadController::descendUntilSwitchActivation(bool& switches_activated)
         // bool result;
         bool all_flag = false; // If all switches have been tripped
         auto result = lcm_handler.checkSwitchState(switch_states, all_flag);
-
-        printf("[INFO] Checked switch state, result %d, states [%d, %d, %d]\n:",
-            result, switch_states[0], switch_states[1], switch_states[2]);
-        std::cout << std::flush;
+        (void)result;
+        // printf("[INFO] Checked switch state, result %d, states [%d, %d, %d]\n:",
+        //     result, switch_states[0], switch_states[1], switch_states[2]);
+        // std::cout << std::flush;
 
         if ( all_flag )
         {
@@ -574,10 +589,28 @@ void PayloadController::applyCalibrationOffsets(bool switches_activated)
 
 bool PayloadController::deployPlatformStep(bool &platform_deployed)
 {
-    // TODO: current set to move past successfully
-    platform_deployed = true;
+    platform_deployed = false;
 
-    return true; 
+    // Start timing on the first call
+    if (deploy_step == 0)
+        startTimer();
+
+    double elapsed = readTimer();
+
+    // Advance through deploy_trajectory to catch up to elapsed time
+    while (deploy_step < deploy_trajectory.times.size() &&
+           elapsed >= deploy_trajectory.times[deploy_step])
+    {
+        if (!platform.moveTo(deploy_trajectory.poses[deploy_step]))
+        {
+            error.msg = "Could not move platform during deployment.";
+            return false;
+        }
+        deploy_step++;
+    }
+
+    platform_deployed = (deploy_step == deploy_trajectory.times.size());
+    return true;
 }
 
 bool PayloadController::trackTrajectoryStep(bool &trajectory_complete)
@@ -802,6 +835,54 @@ bool PayloadController::buildTrajectory()
 
     // Assign only on complete success to avoid partial population
     trajectory = temp;
+    return true;
+}
+
+bool PayloadController::buildDeployTrajectory()
+{
+    const PlatformPose& target = trajectory.poses[0];
+
+    float target_z  = target.position.z();
+    float xy_dist   = target.position.head<2>().norm();
+    float rot_angle = 2.0f * std::acos(std::clamp(std::abs(target.orientation.w()), -1.0f, 1.0f));
+
+    float phase1_ms = std::max((std::abs(target_z) / DEPLOY_MAX_LINEAR_VEL_MM_S) * 1000.0f,
+                               (float)TRAJECTORY_STRUCT_STEP);
+    float phase2_ms = std::max({(xy_dist   / DEPLOY_MAX_LINEAR_VEL_MM_S)  * 1000.0f,
+                                 (rot_angle / DEPLOY_MAX_ANGULAR_VEL_RAD_S) * 1000.0f,
+                                 (float)TRAJECTORY_STRUCT_STEP});
+
+    // Phase 1: lift Z from rest to target_z, flat orientation
+    PlatformPose z_start = {Vector3f::Zero(), Quaternionf::Identity()};
+    PlatformPose z_end   = {Vector3f(0.0f, 0.0f, target_z), Quaternionf::Identity()};
+    trajectory_t phase1;
+    if (!interpolateTrajectory({z_start, z_end}, phase1, phase1_ms, TRAJECTORY_STRUCT_STEP))
+    {
+        error.msg = "Could not generate deploy phase 1 trajectory.";
+        return false;
+    }
+
+    // Phase 2: translate XY and rotate simultaneously to trajectory start
+    PlatformPose xy_start = {Vector3f(0.0f, 0.0f, target_z), Quaternionf::Identity()};
+    trajectory_t phase2;
+    if (!interpolateTrajectory({xy_start, target}, phase2, phase2_ms, TRAJECTORY_STRUCT_STEP))
+    {
+        error.msg = "Could not generate deploy phase 2 trajectory.";
+        return false;
+    }
+
+    // Concatenate into deploy_trajectory with a continuous timeline.
+    // Phase 2 index 0 is the same pose as Phase 1's last point — skip it to avoid duplication.
+    trajectory_t temp;
+    temp.poses.insert(temp.poses.end(), phase1.poses.begin(), phase1.poses.end());
+    temp.times.insert(temp.times.end(), phase1.times.begin(), phase1.times.end());
+    for (size_t i = 1; i < phase2.poses.size(); i++)
+    {
+        temp.poses.push_back(phase2.poses[i]);
+        temp.times.push_back(phase2.times[i] + phase1_ms);
+    }
+
+    deploy_trajectory = temp;
     return true;
 }
 

@@ -72,6 +72,12 @@ class PayloadController
         // The step number which trackTrajectoryStep is up to
         std::vector<float>::size_type trajectory_step;
 
+        // Two-phase deployment trajectory from calibrated rest to trajectory.poses[0]
+        trajectory_t deploy_trajectory;
+
+        // Current step in deploy_trajectory
+        size_t deploy_step;
+
         // The time for which the experiment has been running
         std::chrono::time_point<std::chrono::steady_clock> experiment_start_time;
 
@@ -102,7 +108,12 @@ class PayloadController
         // Return value indicates if the file could be written.
         bool writeAnglesToFile(std::string file_path);
 
-        // Incrementally moves the platform to the starting position in trajectory.angles.
+        // Builds the two-phase deployment trajectory into deploy_trajectory.
+        // Must be called after buildTrajectory() populates trajectory.poses.
+        // Return value indicates if both phases could be constructed.
+        bool buildDeployTrajectory();
+
+        // Incrementally moves the platform one step along deploy_trajectory.
         // platform_deployed = false indicates this method should be called again.
         // Return value indicates if the platform could be deployed.
         bool deployPlatformStep(bool &platform_deployed);
