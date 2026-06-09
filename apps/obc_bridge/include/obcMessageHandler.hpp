@@ -22,18 +22,25 @@ uartInterface.hpp.
 //      packet id: 0x69
 //      file info/header 0x66
 
+/* Notes
+    check #defines against file.h in the OBC code.
+*/
+
+// Payload sends to OBC when it boots to confirm boot was successful
+#define PYLD_ON_ID 0xB0 
+
+// Experiment start / stop
+#define PYLD_START_ID   0xB1
+#define PYLD_STOP_ID    0xB2
+
+// Debug mode
+#define PYLD_ENTER_DEBUG_ID 0xB3
+
 // Unified acknowledgement (payload[0] = ID of the message being acknowledged)
 #define PYLD_ACK_ID 0x68
 
-// Experiment start / stop
-#define PYLD_START_ID   0xA0
-#define PYLD_STOP_ID    0xA1
-
-// Debug mode
-#define PYLD_ENTER_DEBUG_ID 0xA2
-
 // File transfer - used for nominal & debug mode results transfer and for experiment settings file
-#define PYLD_REQUEST_TRANSFER_ID    0xA4
+#define PYLD_REQUEST_TRANSFER_ID    0xB4
 #define PYLD_TRANSFER_HEADER_ID     0x66
 #define PYLD_PACKET_ID              0x69
 #define PYLD_TRANSFER_COMPLETE_ID   0x70
