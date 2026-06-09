@@ -6,9 +6,9 @@
 #include <iostream>
 
 // Time to wait for an acknowledgement before repeating a message sent over UART
-#define WAIT_ACK_TIMEOUT                1000 // ms
-#define DEBUG_IMAGE_WIDTH               640
-#define DEBUG_IMAGE_HEIGHT              480
+#define ACK_TIMEOUT        500 // ms
+#define DEBUG_IMAGE_WIDTH  640 // pixels
+#define DEBUG_IMAGE_HEIGHT 480 // pixels
 
 ObcBridge::ObcBridge()
     : lcm(), lcm_handler(), obc_messager()
@@ -29,6 +29,7 @@ static const char* stateName(ObcBridgeState s)
 {
     switch (s)
     {
+        case ObcBridgeState::STARTUP:                     return "STARTUP";
         case ObcBridgeState::IDLE:                        return "IDLE";
         case ObcBridgeState::RECEIVE_SETTINGS:            return "RECEIVE_SETTINGS";
         case ObcBridgeState::DO_EXPERIMENT:               return "DO_EXPERIMENT";
@@ -43,7 +44,7 @@ static const char* stateName(ObcBridgeState s)
 // Runs the top-level state machine
 void ObcBridge::run()
 {
-    ObcBridgeState state = ObcBridgeState::IDLE;
+    ObcBridgeState state = ObcBridgeState::STARTUP;
     std::cout << "[INFO] ObcBridge state: " << stateName(state) << std::endl;
 
     while (true)
@@ -52,6 +53,9 @@ void ObcBridge::run()
 
         switch (state)
         {
+            case ObcBridgeState::STARTUP:
+                next = handleStartupState();
+                break;
             case ObcBridgeState::IDLE:
                 next = handleIdleState();
                 break;
@@ -85,6 +89,34 @@ void ObcBridge::run()
 }
 
 // --- Core ObcBridge state machine logic --------------------------------------
+
+// Only entered when the payload is first turned on. Sends a message to the OBC
+// to inform it that the payload has turned on successfully. 
+ObcBridgeState ObcBridge::handleStartupState()
+{
+    float ack_timeout = ACK_TIMEOUT;
+
+    obc_messager.transmit(PYLD_ON_ID);
+    startTimer();
+
+    // Wait for an acknowledge before retrying
+    while (true)
+    {
+        obc_messager.drainUart();
+
+        if (obc_messager.checkAck(PYLD_ON_ID))
+            break;
+
+        if (readTime() > ack_timeout)
+        {
+            obc_messager.transmit(PYLD_ON_ID);
+            startTimer();
+        }
+    }
+
+    // Automatically transition to IDLE when acknowledgement is received
+    return ObcBridgeState::IDLE;
+}
 
 ObcBridgeState ObcBridge::handleIdleState()
 {

@@ -16,6 +16,7 @@ to send data back over UART.
 // States for the top level OBC-payload comms state machine
 enum class ObcBridgeState 
 {
+    STARTUP, // only occupied when the payload is first turned on 
     IDLE, 
     RECEIVE_SETTINGS,
     DO_EXPERIMENT,
@@ -74,6 +75,7 @@ class ObcBridge
         float readTime();
 
         // State handlers for the main OBC-payload comms state machine
+        ObcBridgeState handleStartupState();
         ObcBridgeState handleIdleState();
         ObcBridgeState handleReceiveSettingsState();
         ObcBridgeState handleDoExperimentState();

@@ -45,7 +45,6 @@ uartInterface.hpp.
 #define PYLD_PACKET_ID              0x69
 #define PYLD_TRANSFER_COMPLETE_ID   0x70
 
-#define ACK_TIMEOUT 1000 // ms, time before a new message is sent because an acknowledge was not received
 
 class ObcMessageHandler
 {
