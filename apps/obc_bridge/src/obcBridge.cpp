@@ -96,7 +96,11 @@ ObcBridgeState ObcBridge::handleStartupState()
 {
     float ack_timeout = ACK_TIMEOUT;
 
-    obc_messager.transmit(PYLD_ON_ID);
+    if (obc_messager.transmit(PYLD_ON_ID) == false)
+    {
+        std::cout << "Failed to send UART message." << std::endl;
+    }
+
     startTimer();
 
     // Wait for an acknowledge before retrying
@@ -130,13 +134,27 @@ ObcBridgeState ObcBridge::handleIdleState()
         obc_messager.transmitAck(PYLD_START_ID);
         return ObcBridgeState::DO_EXPERIMENT;
     }
-    else if (obc_messager.checkMessage(PYLD_REQUEST_TRANSFER_ID))
+    else if (obc_messager.checkHeader())
     {
         // Request from OBC to transfer a data file
         // Assume transfer requests are for the experiment settings file
-        obc_messager.transmitAck(PYLD_REQUEST_TRANSFER_ID);
+        obc_messager.transmitAck(PYLD_TRANSFER_HEADER_ID);
         return ObcBridgeState::RECEIVE_SETTINGS;
     }
+    // else if (obc_messager.checkMessage(PYLD_TRANSFER_HEADER_ID))
+    // {
+    //     // Request from OBC to transfer a data file
+    //     // Assume transfer requests are for the experiment settings file
+    //     obc_messager.transmitAck(PYLD_REQUEST_TRANSFER_ID);
+    //     return ObcBridgeState::RECEIVE_SETTINGS;
+    // }
+    // else if (obc_messager.checkMessage(PYLD_REQUEST_TRANSFER_ID))
+    // {
+    //     // Request from OBC to transfer a data file
+    //     // Assume transfer requests are for the experiment settings file
+    //     obc_messager.transmitAck(PYLD_REQUEST_TRANSFER_ID);
+    //     return ObcBridgeState::RECEIVE_SETTINGS;
+    // }
     else if (obc_messager.checkMessage(PYLD_ENTER_DEBUG_ID))
     {
         // Request from OBC to enter debug mode
@@ -149,7 +167,7 @@ ObcBridgeState ObcBridge::handleIdleState()
 
 ObcBridgeState ObcBridge::handleReceiveSettingsState()
 {
-    ReceiveSettingsState state = ReceiveSettingsState::WAIT_HEADER;
+    ReceiveSettingsState state = ReceiveSettingsState::WAIT_PACKET; // update from WAIT_HEADER because the header is now the first message recieved
 
     // Reset file receive buffer from any prior transfer attempt
     obc_messager.clearFileBuffer();
@@ -206,6 +224,7 @@ ObcBridgeState ObcBridge::handleReceiveSettingsState()
 
 ObcBridgeState ObcBridge::handleDoExperimentState()
 {
+    return ObcBridgeState::TRANSMIT_EXPERIMENT_RESULTS;
     int run_result_id;
 
     // Start the payload experiment
@@ -261,7 +280,7 @@ ObcBridgeState ObcBridge::handleTransmitDebugResultsState()
 
 ObcBridgeState ObcBridge::runTransmitStateMachine()
 {
-    TransmitResultState state = TransmitResultState::REQUEST_TRANSFER;
+    TransmitResultState state = TransmitResultState::SEND_HEADER;
     float ack_timeout = ACK_TIMEOUT;
     bool transmit_success;
     int packet_num = 0;
@@ -320,7 +339,12 @@ ObcBridgeState ObcBridge::runTransmitStateMachine()
                 break;
 
             case TransmitResultState::SEND_PACKET:
-                std::cout << "[INFO] Sending packet " << (packet_num + 1) << "." << std::endl;
+                // std::cout << "[INFO] Sending packet " << (packet_num + 1) << "." << std::endl;
+                if (packet_num % 1000 == 0)
+                {
+                    std::cout << "[INFO] Sending packet " << (packet_num + 1) << "." << std::endl;
+                }
+
                 transmit_success = obc_messager.transmitResultsPacket();
                 if (!transmit_success)
                 {

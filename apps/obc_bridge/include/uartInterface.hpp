@@ -17,9 +17,9 @@ UART_msg_t.
 //--------------Defines----------------
 #define RX_CRC_BYTES      2
 #define RX_HEADER_BYTES   3
-#define RX_BUFFER_BYTES 254 // Had to decrease max length from 256 to 254 to make compatible with UART_msg_t maximum length comparisons in .cpp file
+#define RX_BUFFER_BYTES 192 // Had to decrease max length from 256 to 254 to make compatible with UART_msg_t maximum length comparisons in .cpp file
 #define UART_SOF       0x64
-#define DEFAULT_UART_TIMEOUT_US 100
+#define DEFAULT_UART_TIMEOUT_US 10000 //100
 
 // States for UART message reception state machine
 typedef enum{

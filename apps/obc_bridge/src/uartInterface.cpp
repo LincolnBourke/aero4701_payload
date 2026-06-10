@@ -6,10 +6,10 @@
 #include <chrono>
 #include <cstring>
 
-#define UART_FILE "/dev/pts/7"     // change for testing depending on socat virtual port
+// #define UART_FILE "/dev/pts/7"     // change for testing depending on socat virtual port
 // #define UART_FILE "/dev/serial0"    // Should point to the active UART
-// #define UART_FILE "/dev/ttyAMA0"    // GPIO header (pin 14 tx, pin 15 rx)
-#define BAUD_RATE B115200
+#define UART_FILE "/dev/ttyAMA3"    
+#define BAUD_RATE B3000000 // B115200
 
 UartInterface::UartInterface() {};
 
@@ -58,9 +58,10 @@ bool UartInterface::receive(UART_msg_t* msg, uint32_t timeout_us)
     // Check the file stream is open 
     if (uart_filestream == -1)
     {
+        std::cout << "Filestream not open when checking for receive message." << std::endl;
         return false; 
     }
-
+-
     // Read buffering 
     unsigned char rx_buffer[1];
     ssize_t bytes_read; 
@@ -153,8 +154,8 @@ bool UartInterface::receive(UART_msg_t* msg, uint32_t timeout_us)
                 {
                     if (UART_checkCRC(msg))
                     {
-                        std::cout << "[INFO] UART rx: id=0x" << std::hex << std::uppercase
-                                  << (int)msg->id << std::dec << " len=" << (int)msg->length << std::endl;
+                        // std::cout << "[INFO] UART rx: id=0x" << std::hex << std::uppercase
+                        //           << (int)msg->id << std::dec << " len=" << (int)msg->length << std::endl;
                         return true;
                     }
                     std::cout << "[WARN] UART rx: CRC mismatch on id=0x" << std::hex << std::uppercase
@@ -211,8 +212,8 @@ bool UartInterface::transmit(UART_msg_t* msg)
         return false;
     }
 
-    std::cout << "[INFO] UART tx: id=0x" << std::hex << std::uppercase
-              << (int)msg->id << std::dec << " len=" << (int)msg->length << std::endl;
+    // std::cout << "[INFO] UART tx: id=0x" << std::hex << std::uppercase
+    //           << (int)msg->id << std::dec << " len=" << (int)msg->length << std::endl;
     return true;
 }
 
