@@ -90,7 +90,7 @@ void ServoController::handleServoAngMsg(const lcm::ReceiveBuffer* rbuf,
 
     Servo 2: 
         Up:         877.50
-        Horizontal: 1813.00
+        Horizontal: 1841.75
         ADC limit:  2224.00
 
     Servo 3: 
@@ -111,7 +111,7 @@ void ServoController::handleServoAngMsg(const lcm::ReceiveBuffer* rbuf,
     */
 
     std::array<float, 6> max_pwm = {917.50, 2189.0, 877.5, 2166.75, 854.75, 2184.0};
-    std::array<float, 6> flat_pwm = {1880.0, 1300.0, 1813.0, 1117.0, 1784.5, 1271.25};
+    std::array<float, 6> flat_pwm = {1880.0, 1300.0, 1841.75, 1117.0, 1784.5, 1271.25};
     // const float limit_pwm = 2224.0;
 
     // calculate how many pwm units there are per radian
