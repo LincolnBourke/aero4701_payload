@@ -6,24 +6,10 @@ import os
 import glob
 import csv
 
-
 from picamera2 import Picamera2
 from libcamera import controls
 from event_camera_emulation.emulator import EventCameraEmulator
-
-# Setup save directories
-# ~ def setup_directories():
-    # ~ output_dir = "outputs"
-    # ~ os.makedirs(output_dir, exist_ok=True)
-    # ~ calib_folder = "outputs/calibration"
-    # ~ os.makedirs(calib_folder, exist_ok=True)
-    # ~ baseline_folder = "outputs/baseline"
-    # ~ os.makedirs(baseline_folder, exist_ok=True)
-    # ~ baseline_pose_folder = "outputs/baseline_pose"
-    # ~ os.makedirs(baseline_pose_folder, exist_ok=True)
-
-    # ~ return output_dir, calib_folder, baseline_folder, baseline_pose_folder
-    
+   
 def setup_directories(output_dir="outputs"):
     os.makedirs(output_dir, exist_ok=True)
     calib_folder = f"{output_dir}/calibration"
@@ -44,39 +30,7 @@ def setup_calib_parameters():
     
     return CHESSBOARD, SQUARE_SIZE, L, MAX_CALIB_ATTEMPTS
 
-# Define ROIS centred in the image
-# TODO Could avoid hardcoding, or update
-# ~ def define_rois(width=640, height=480, scale=0.5):
-    # ~ # Scale controls ROI size relative to image size
-    # ~ w = int(width * scale)
-    # ~ h = int(height * scale)
-
-    # ~ cx = width // 2
-    # ~ cy = height // 2
-
-    # ~ # Offsets for triangular layout
-    # ~ dx = int(width * 0.2)
-    # ~ dy = int(height * 0.2)
-
-    # ~ top_extra = int(height * 0.1)   # extra upward movement
-    # ~ bottom_extra = int(height * 0.1)   # extra downward movement
-
-    # ~ ROIS = [
-        # ~ # top board
-        # ~ (cx - w//2, cy - h//2 - dy - top_extra,
-         # ~ cx + w//2, cy + h//2 - dy - top_extra),
-
-        # ~ # bottom-left board
-        # ~ (cx - w//2 - dx, cy - h//2 + dy + bottom_extra,
-         # ~ cx + w//2 - dx, cy + h//2 + dy + bottom_extra),
-
-        # ~ # bottom-right board
-        # ~ (cx - w//2 + dx, cy - h//2 + dy + bottom_extra,
-         # ~ cx + w//2 + dx, cy + h//2 + dy + bottom_extra),
-    # ~ ]
-
-    # ~ return ROIS
-    
+# Removed automatice triangle version, used hardcoded tuned regions    
 def define_rois():
     """Hardcoded ROIs tuned for 640x480."""
     return [
@@ -161,12 +115,6 @@ def get_cboard_gt(L=0.025981, CHESSBOARD=(5, 3), SQUARE_SIZE=0.00225):
 
     return objpoints_3boards
 
-
-# ~ def detect_cboard_calib(images, ROIS, CHESSBOARD=(5, 3), SQUARE_SIZE=0.00225, save_debug_images=False):
-    # ~ debug_folder = "outputs/calibration_test"
-    # ~ if save_debug_images:
-        # ~ shutil.rmtree(debug_folder, ignore_errors=True)
-        # ~ os.makedirs(debug_folder, exist_ok=True)
 
 def detect_cboard_calib(images, ROIS, CHESSBOARD=(5, 3), SQUARE_SIZE=0.00225, save_debug_images=False, debug_folder="outputs/calibration_test"):
     if save_debug_images:
@@ -289,7 +237,7 @@ def get_valid_frame(camera):
 
     return frame
 
-
+# Capture a frame with some extra checks for first time
 def capture_frame(picam2_):
     frame = picam2_.capture_array("main")
     if frame is None or frame.size == 0:
@@ -302,7 +250,6 @@ def capture_frame(picam2_):
     
 
 # Open pi camera 3 and set focus. Save debug image if enabled.
-# ~ def open_picam(params, picam2_, debug_mode=False):
 def open_picam(params, picam2_, debug_mode=False, output_dir="outputs"):
 
     frame_us = int(1_000_000 / params["fps"])
@@ -310,6 +257,7 @@ def open_picam(params, picam2_, debug_mode=False, output_dir="outputs"):
     try:
         picam2_ = Picamera2()
 
+        # Old version
         # ~ config = picam2_.create_video_configuration(
             # ~ main={"format": "BGR888", "size": (params["width"], params["height"])},
             # ~ raw={"size": picam2_.sensor_resolution},
@@ -332,7 +280,6 @@ def open_picam(params, picam2_, debug_mode=False, output_dir="outputs"):
         print(f"[open_picam] [INFO] Raw stream config: {camera_config.get('raw', 'N/A')}")
         print(f"[open_picam] [INFO] Main stream config: {camera_config.get('main', 'N/A')}")
         
-
         # Try autofocus once, then lock the focus position
         try:
             picam2_.set_controls({"AfMode": controls.AfModeEnum.Auto})
@@ -390,13 +337,6 @@ def open_picam(params, picam2_, debug_mode=False, output_dir="outputs"):
             previous_image = cv.cvtColor(previous_image, cv.COLOR_GRAY2BGR)
 
         # Save focused frame to outputs/ for debug mode
-        # ~ if debug_mode:
-            # ~ os.makedirs("outputs", exist_ok=True)
-            # ~ debug_path = "outputs/debug_mode_focus.jpeg"
-            # ~ cv.imwrite(debug_path, previous_image)
-            # ~ print(f"[open_picam] [DEBUG] Saved post-focus frame to: {debug_path}")
-
-        
         if debug_mode:
             os.makedirs(output_dir, exist_ok=True)
             debug_path = f"{output_dir}/debug_mode_focus.jpeg"
@@ -505,11 +445,14 @@ def open_picam_for_exp(params, picam2_, saved_cam_settings):
     frame_us = int(1_000_000 / params["fps"])
     try:
         picam2_ = Picamera2()
+
+        # Old version
         # ~ config = picam2_.create_video_configuration(
             # ~ main={"format": "BGR888", "size": (params["width"], params["height"])},
             # ~ raw={"size": picam2_.sensor_resolution},
             # ~ controls={"FrameDurationLimits": (frame_us, frame_us)}
         # ~ )
+
         config = picam2_.create_video_configuration(
             main={"format": "BGR888", "size": (params["width"], params["height"])},
             raw={"size": (4608, 2592)},   # full sensor, matches widget mode
@@ -566,17 +509,9 @@ import struct
 
 
 # Saves frames and histograms from experiment 
-# ~ def save_exp_video(picam2_, display_widget=False, save_debug_images=False, exp_time=20.0, WINDOW_SIZE=1):
 def save_exp_video(picam2_, display_widget=False, save_debug_images=False, exp_time=30.0, WINDOW_SIZE=1, output_dir="outputs"):
     
     print("Starting experiment")
-    # Setup debug output folders
-    # ~ if save_debug_images:
-        # ~ event_frame_dir = "outputs/event_data/frames"
-        # ~ event_hist_dir = "outputs/event_data/histograms"
-        # ~ shutil.rmtree("outputs/event_data", ignore_errors=True)
-        # ~ os.makedirs(event_frame_dir, exist_ok=True)
-        # ~ os.makedirs(event_hist_dir, exist_ok=True)
         
     if save_debug_images:
         event_frame_dir = f"{output_dir}/event_data/frames"
@@ -597,7 +532,6 @@ def save_exp_video(picam2_, display_widget=False, save_debug_images=False, exp_t
     frame = None
     while frame is None and (time.time() - start_time) < timeout:
         try:
-            # frame = picam2_.capture_array("main")
             frame = capture_frame(picam2_)
         except Exception:
             frame = None
@@ -629,7 +563,7 @@ def save_exp_video(picam2_, display_widget=False, save_debug_images=False, exp_t
             event_hist = np.zeros_like(gray_event, dtype=np.float32)
         event_hist += np.abs(gray_event)
 
-        # Accumulate histogram window
+        # Accumulate histogram window for 150 frames
         if frame_idx % WINDOW_SIZE == 0 and frame_idx > 0:
             hist_idx = frame_idx // WINDOW_SIZE
             if hist_idx < 150:
@@ -683,23 +617,24 @@ def save_exp_video(picam2_, display_widget=False, save_debug_images=False, exp_t
             process_frame(frame)
 
     # Save baseline images for later pose estimation
-    # ~ baseline_folder = "outputs/baseline"
     baseline_folder = f"{output_dir}/baseline"
     shutil.rmtree(baseline_folder, ignore_errors=True)
     os.makedirs(baseline_folder, exist_ok=True)
 
-    # Save RGB frames for later pose estimation
-    for i, frame in enumerate(frames):
+    # Save 150 RGB frames for later pose estimation
+    # for i, frame in enumerate(frames):
+    #     cv.imwrite(f"{baseline_folder}/frame_{i:04d}.jpeg", frame)
+    
+    # Save 150 RGB frames for later pose estimation (repeat last frame if <150 for simple backup)
+    frames_to_save = frames[:150]
+    if len(frames_to_save) < 150:
+        frames_to_save = frames_to_save + [frames_to_save[-1]] * (150 - len(frames_to_save))
+    for i, frame in enumerate(frames_to_save):
         cv.imwrite(f"{baseline_folder}/frame_{i:04d}.jpeg", frame)
 
     print("[save_exp_video] [INFO] Experiment recording complete\n")
     return hist_records
 
-
-# ~ def process_baseline_data(objpoints_3boards, mtx, dist, ROIS, CHESSBOARD=(5, 3),
-                           # ~ baseline_folder="outputs/baseline",
-                           # ~ pose_folder="outputs/baseline_pose",
-                           # ~ save_debug_images=False):
 
 def process_baseline_data(objpoints_3boards, mtx, dist, ROIS, CHESSBOARD=(5, 3),
                            baseline_folder="outputs/baseline",
@@ -811,42 +746,57 @@ def process_baseline_data(objpoints_3boards, mtx, dist, ROIS, CHESSBOARD=(5, 3),
 # Save the experiment results
 import csv
 
+# def save_exp_results(hist_records, results_dir="outputs/experiment_results"):
+#     # Setup output folders
+#     # results_dir = "outputs/experiment_results"
+    
+#     os.makedirs(results_dir, exist_ok=True) # backup
+    
+#     # ~ # Write histogram records to binary file
+#     # ~ results_file = open(os.path.join(results_dir, "experiment_results.bin"), "ab")
+#     # ~ for record in hist_records:
+#         # ~ results_file.write(record)
+#     # ~ results_file.close()
+    
+#     # ~ print("[save_exp_results] [INFO] Experiment results saved\n")
+    
+#     # Debugging
+#     # print(f"[save_exp_results] [INFO] hist_records count: {len(hist_records)}")
+#     # if len(hist_records) > 0:
+#     #     print(f"[save_exp_results] [INFO] First record shape: {hist_records[0].shape}, dtype: {hist_records[0].dtype}")
+    
+#     # Write histogram to csv
+#     csv_path = os.path.join(results_dir, "experiment_results.csv")
+#     # with open(csv_path, "a", newline="") as f:
+#     #     writer = csv.writer(f)
+#     #     for record in hist_records:
+#     #         writer.writerow(record.tolist())
+#     # Write with hex encoding
+#     csv_path = os.path.join(results_dir, "experiment_results.csv")
+#     with open(csv_path, "a", newline="") as f:
+#         writer = csv.writer(f)
+#         # writer.writerow(["# histograms (hex-encoded, one row per window)"])
+#         for record in hist_records:
+#             # Pack bits then encode as hex string - compact single-column row
+#             packed = np.packbits(record)
+#             writer.writerow([packed.tobytes().hex()])
+#     print("[save_exp_results] [INFO] Experiment results saved\n")
+    
+
 def save_exp_results(hist_records, results_dir="outputs/experiment_results"):
-    # Setup output folders
-    # results_dir = "outputs/experiment_results"
-    
-    os.makedirs(results_dir, exist_ok=True) # backup
-    
-    # ~ # Write histogram records to binary file
-    # ~ results_file = open(os.path.join(results_dir, "experiment_results.bin"), "ab")
-    # ~ for record in hist_records:
-        # ~ results_file.write(record)
-    # ~ results_file.close()
-    
-    # ~ print("[save_exp_results] [INFO] Experiment results saved\n")
-    
-    # Debugging
-    # print(f"[save_exp_results] [INFO] hist_records count: {len(hist_records)}")
-    # if len(hist_records) > 0:
-    #     print(f"[save_exp_results] [INFO] First record shape: {hist_records[0].shape}, dtype: {hist_records[0].dtype}")
-    
-    # Write histogram to csv
-    csv_path = os.path.join(results_dir, "experiment_results.csv")
-    # with open(csv_path, "a", newline="") as f:
-    #     writer = csv.writer(f)
-    #     for record in hist_records:
-    #         writer.writerow(record.tolist())
-    # Write with hex encoding
+    os.makedirs(results_dir, exist_ok=True)
+
+    if len(hist_records) < 150:
+        hist_records = list(hist_records) + [hist_records[-1]] * (150 - len(hist_records))
+
     csv_path = os.path.join(results_dir, "experiment_results.csv")
     with open(csv_path, "a", newline="") as f:
         writer = csv.writer(f)
-        # writer.writerow(["# histograms (hex-encoded, one row per window)"])
         for record in hist_records:
-            # Pack bits then encode as hex string - compact single-column row
             packed = np.packbits(record)
             writer.writerow([packed.tobytes().hex()])
     print("[save_exp_results] [INFO] Experiment results saved\n")
-    
+
 
 # Add output_dir param so cleanup targets the right boot folder
 def cleanup_images(cleanup_enabled=False, output_dir="outputs"):

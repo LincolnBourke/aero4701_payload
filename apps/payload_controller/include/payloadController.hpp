@@ -147,7 +147,7 @@ class PayloadController
 
         // --- Servo calibration helpers ---------------------------------------
         // Moves the platform from PLATFORM_REST_Z to CALIBRATION_START_Z.
-        bool moveToCalibrationStart();
+        bool moveAlongZAxis(float start_z, float end_z);
 
         // Lowers the platform from CALIBRATION_START_Z to CALIBRATION_END_Z,
         // polling limit switches. Sets switches_activated on return.
