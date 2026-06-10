@@ -324,3 +324,17 @@ sudo systemctl start testapp.service
 
 ## Notes
 Zero angles: [ 90.00, 180.00, 79.71, 180.00, 97.71, 180.00 ] 
+
+
+## Tasks To Do
+- Run on blue carrier board
+--> Update service script
+--> Change flags in camera
+- Add saving repeated experiments (54_1. 54_2 etc - camera + where file is written in payloadController)
+- Change trajectory (start near the top)
+- Add a second trajectory 
+- Ben add docking port
+- 149 lines of servo results (copy last angle)
+- Turning servos off between runs
+
+- OBC comms 
