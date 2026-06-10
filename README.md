@@ -336,5 +336,7 @@ Zero angles: [ 90.00, 180.00, 79.71, 180.00, 97.71, 180.00 ]
 - Ben add docking port
 - 149 lines of servo results (copy last angle)
 - Turning servos off between runs
+- Test running from power supply 
+- Test running with BMS
 
 - OBC comms 

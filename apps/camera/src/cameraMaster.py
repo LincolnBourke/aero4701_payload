@@ -15,7 +15,7 @@ CAMERA_SETTINGS_PATH = "apps/camera/camera_settings/pi_camera_settings.txt"
 BOOT_COUNT_FILE      = "/home/slave2/Documents/service_test/boot_count.txt"
 
 ## FLAGS
-SHOW_CAMERA_FEED    = True   # Display live camera feed widget during capture
+SHOW_CAMERA_FEED    = False   # Display live camera feed widget during capture
 SAVE_DEBUG_IMAGES   = True   # Save calibration_test, baseline_pose annotated images and event data
 DELETE_IMAGES       = False  # Delete all saved images (calibration + experiment) after each run
 
