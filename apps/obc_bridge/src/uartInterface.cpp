@@ -61,7 +61,7 @@ bool UartInterface::receive(UART_msg_t* msg, uint32_t timeout_us)
         std::cout << "Filestream not open when checking for receive message." << std::endl;
         return false; 
     }
--
+
     // Read buffering 
     unsigned char rx_buffer[1];
     ssize_t bytes_read; 
