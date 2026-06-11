@@ -40,6 +40,7 @@ typedef enum State {
     CALIBRATE_CAMERA,   // Moves platform to let camera node calibrate
     DEPLOY,             // Deploys the docking port to the starting position
     RUNNING,            // Runs the experiment
+    RETURN,             // Returns the platform from the end of the trajectory back to the home position
     SAVE_RESULTS,       // Saves experiment data and tells the camera node to do the same
     TERMINATE_RUN,      // Moves the platform back to the home position 
     ERROR,              // Publishes an erroneous run result
@@ -80,6 +81,12 @@ class PayloadController
 
         // Current step in deploy_trajectory
         size_t deploy_step;
+
+        // Two-phase return trajectory from trajectory.poses.back() to home position
+        trajectory_t return_trajectory;
+
+        // Current step in return_trajectory
+        size_t return_step;
 
         // The time for which the experiment has been running
         std::chrono::time_point<std::chrono::steady_clock> experiment_start_time;
@@ -126,6 +133,16 @@ class PayloadController
         // Return value indicates if the platform could be deployed.
         bool deployPlatformStep(bool &platform_deployed);
 
+        // Builds the two-phase return trajectory from trajectory.poses.back() to home.
+        // Must be called after buildTrajectory() populates trajectory.poses.
+        // Return value indicates if both phases could be constructed.
+        bool buildReturnTrajectory();
+
+        // Incrementally moves the platform one step along return_trajectory.
+        // platform_returned = false indicates this method should be called again.
+        // Return value indicates if the platform could be returned to home.
+        bool returnPlatformStep(bool &platform_returned);
+
         // Moves the platform along the trajectory defined by trajectory.
         // trajectory_complete = false indicates this method should be called again.
         // Return value indicates if the trajectory could be successfully followed.
@@ -164,6 +181,7 @@ class PayloadController
         state_t handleCalibrateCameraState();
         state_t handleDeployState();
         state_t handleRunningState();
+        state_t handleReturnState();
         state_t handleSaveResultsState();
         state_t handleTerminateRunState();
         state_t handleErrorState();

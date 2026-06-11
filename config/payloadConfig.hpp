@@ -1,7 +1,7 @@
 #ifndef PAYLOAD_CONFIG_H
 #define PAYLOAD_CONFIG_H
 
-#define TRAJECTORY_FILE_PATH         "data/docking_trajectory.csv"
+#define TRAJECTORY_FILE_PATH         "data/docking_trajectory_short.csv"
 #define RESULTS_FILEPATH             "data/test_obc_nominal/results.csv"
 #define DEBUG_RESULTS_FILEPATH       "data/test_obc_debug/debug_mode_focus.jpeg"
 #define TRAJECTORY_SETTINGS_FILEPATH "data/test_obc_nominal/trajectory_settings.csv"

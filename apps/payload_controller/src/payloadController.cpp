@@ -42,7 +42,7 @@ constexpr float PHYSICAL_ANGLE_AT_ACTIVATION = -41.58f * M_PI / 180.0f;
 
 PayloadController::PayloadController()
     : lcm(), lcm_handler(), tol(5*M_PI/180), // tolerance of 5 degs
-     error(), platform(), trajectory_step(0), deploy_step(0), experiment_start_time()
+     error(), platform(), trajectory_step(0), deploy_step(0), return_step(0), experiment_start_time()
 {
     trajectory_path = TRAJECTORY_FILE_PATH;
 
@@ -92,6 +92,9 @@ void PayloadController::run()
             break;
         case RUNNING:
             state = handleRunningState();
+            break;
+        case RETURN:
+            state = handleReturnState();
             break;
         case SAVE_RESULTS:
             state = handleSaveResultsState();
@@ -154,6 +157,14 @@ state_t PayloadController::handleReadTrajectoryState()
         return ERROR;
     }
     std::cout << "[INFO] Deploy trajectory built." << std::endl;
+
+    // Build the return trajectory from the last trajectory point back to the home position
+    if (buildReturnTrajectory() == false)
+    {
+        std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+        return ERROR;
+    }
+    std::cout << "[INFO] Return trajectory built." << std::endl;
 
     // Sleep so python can catch up
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -314,14 +325,35 @@ state_t PayloadController::handleRunningState()
         }
     }
 
-    // Check if the trajectory is complete before moving to SAVE_RESULTS
+    // Check if the trajectory is complete before returning the platform to home
     if (trajectory_complete == true)
+    {
+        return_step = 0;
+        std::cout << "[INFO] Payload controller state set to RETURN." << std::endl;
+        return RETURN;
+    }
+
+    return RUNNING;
+}
+
+state_t PayloadController::handleReturnState()
+{
+    bool platform_returned;
+
+    if (returnPlatformStep(platform_returned) == false)
+    {
+        error.msg = "Could not return platform to home.";
+        std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+        return ERROR;
+    }
+
+    if (platform_returned == true)
     {
         std::cout << "[INFO] Payload controller state set to SAVE_RESULTS." << std::endl;
         return SAVE_RESULTS;
     }
 
-    return RUNNING;
+    return RETURN;
 }
 
 state_t PayloadController::handleSaveResultsState()
@@ -657,6 +689,30 @@ bool PayloadController::deployPlatformStep(bool &platform_deployed)
     return true;
 }
 
+bool PayloadController::returnPlatformStep(bool &platform_returned)
+{
+    platform_returned = false;
+
+    if (return_step == 0)
+        startTimer();
+
+    double elapsed = readTimer();
+
+    while (return_step < return_trajectory.times.size() &&
+           elapsed >= return_trajectory.times[return_step])
+    {
+        if (!platform.moveTo(return_trajectory.poses[return_step]))
+        {
+            error.msg = "Could not move platform during return to home.";
+            return false;
+        }
+        return_step++;
+    }
+
+    platform_returned = (return_step == return_trajectory.times.size());
+    return true;
+}
+
 bool PayloadController::trackTrajectoryStep(bool &trajectory_complete)
 {
     trajectory_complete = false;
@@ -927,6 +983,53 @@ bool PayloadController::buildDeployTrajectory()
     }
 
     deploy_trajectory = temp;
+    return true;
+}
+
+bool PayloadController::buildReturnTrajectory()
+{
+    const PlatformPose& source = trajectory.poses.back();
+    PlatformPose home = {Vector3f(0.0f, 0.0f, (float)PLATFORM_REST_Z), Quaternionf::Identity()};
+
+    float source_z   = source.position.z();
+    float xy_dist    = source.position.head<2>().norm();
+    float rot_angle  = 2.0f * std::acos(std::clamp(std::abs(source.orientation.w()), -1.0f, 1.0f));
+
+    float phase1_ms = std::max({(xy_dist   / DEPLOY_MAX_LINEAR_VEL_MM_S)  * 1000.0f,
+                                 (rot_angle / DEPLOY_MAX_ANGULAR_VEL_RAD_S) * 1000.0f,
+                                 (float)TRAJECTORY_STRUCT_STEP});
+    float phase2_ms = std::max((std::abs(source_z - (float)PLATFORM_REST_Z) / DEPLOY_MAX_LINEAR_VEL_MM_S) * 1000.0f,
+                               (float)TRAJECTORY_STRUCT_STEP);
+
+    // Phase 1: remove XY offset and orientation simultaneously, keeping z at source_z
+    PlatformPose xy_end = {Vector3f(0.0f, 0.0f, source_z), Quaternionf::Identity()};
+    trajectory_t phase1;
+    if (!interpolateTrajectory({source, xy_end}, phase1, phase1_ms, TRAJECTORY_STRUCT_STEP))
+    {
+        error.msg = "Could not generate return phase 1 trajectory.";
+        return false;
+    }
+
+    // Phase 2: lower z from source_z to PLATFORM_REST_Z, flat orientation
+    trajectory_t phase2;
+    if (!interpolateTrajectory({xy_end, home}, phase2, phase2_ms, TRAJECTORY_STRUCT_STEP))
+    {
+        error.msg = "Could not generate return phase 2 trajectory.";
+        return false;
+    }
+
+    // Concatenate into return_trajectory with a continuous timeline.
+    // Phase 2 index 0 is the same pose as Phase 1's last point — skip it to avoid duplication.
+    trajectory_t temp;
+    temp.poses.insert(temp.poses.end(), phase1.poses.begin(), phase1.poses.end());
+    temp.times.insert(temp.times.end(), phase1.times.begin(), phase1.times.end());
+    for (size_t i = 1; i < phase2.poses.size(); i++)
+    {
+        temp.poses.push_back(phase2.poses[i]);
+        temp.times.push_back(phase2.times[i] + phase1_ms);
+    }
+
+    return_trajectory = temp;
     return true;
 }
 

@@ -273,7 +273,7 @@ class DebugGUI:
 
 def main():
     parser = argparse.ArgumentParser(description="Stewart Platform Servo Debug GUI")
-    parser.add_argument("--window", type=float, default=30.0,
+    parser.add_argument("--window", type=float, default=60.0,
                         metavar="SECONDS",
                         help="Rolling graph time window in seconds (default: 20)")
     args = parser.parse_args()
