@@ -8,7 +8,7 @@
 // #define CAMERA_SETTINGS_FILEPATH     "data/test_obc_nominal/scalar_settings.csv"
 
 // For a hardware test 
-#define TRAJECTORY_FILE_PATH         "data/hardware_test/trajectory_settings.csv"
+#define TRAJECTORY_FILE_PATH         "data/docking_trajectory_short.csv"
 #define RESULTS_FILEPATH             "data/hardware_test/results.csv"
 #define DEBUG_RESULTS_FILEPATH       "data/hardware_test/debug_mode_focus.jpeg"
 #define TRAJECTORY_SETTINGS_FILEPATH "data/hardware_test/trajectory_settings.csv"

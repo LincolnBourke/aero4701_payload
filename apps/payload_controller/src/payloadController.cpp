@@ -35,7 +35,7 @@ static const bool DEBUG_MODE = true;
 
 // Maximum deployment speeds
 #define DEPLOY_MAX_LINEAR_VEL_MM_S   2.0f  // mm/s, max translation speed during deployment
-#define DEPLOY_MAX_ANGULAR_VEL_RAD_S 0.05f  // rad/s, max rotation speed during deployment
+#define DEPLOY_MAX_ANGULAR_VEL_RAD_S 0.015f  // rad/s, max rotation speed during deployment
 
 #define SERVO_FEEDBACK_INTERVAL_MS 200 // ms between servo feedback samples during experiment
 
