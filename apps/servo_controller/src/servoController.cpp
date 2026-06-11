@@ -129,9 +129,12 @@ void ServoController::handleServoAngMsg(const lcm::ReceiveBuffer* rbuf,
 
     */
 
-    std::array<float, 6> max_pwm = {917.50, 2189.0, 877.5, 2166.75, 854.75, 2184.0};
-    std::array<float, 6> flat_pwm = {1880.0, 1300.0, 1841.75, 1117.0, 1784.5, 1271.25};
+    // std::array<float, 6> max_pwm = {917.50, 2189.0, 877.5, 2166.75, 854.75, 2184.0};
+    // std::array<float, 6> flat_pwm = {1880.0, 1300.0, 1841.75, 1117.0, 1784.5, 1271.25};
     // const float limit_pwm = 2224.0;
+
+    std::array<float, 6> max_pwm = {866.0, 2047.0, 832.00, 2178.25, 957.50, 2087.00};
+    std::array<float, 6> flat_pwm = {1773.25, 1094.25, 1710.50, 1242.75, 1830.25, 1145.75};
 
     // calculate how many pwm units there are per radian
     std::array<float, 6> units_per_radian = {0};
