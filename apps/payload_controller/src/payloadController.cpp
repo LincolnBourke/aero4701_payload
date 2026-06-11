@@ -13,6 +13,7 @@
 
 static const char* CH_CONT_TO_CAM = "PAYLOAD_CAM";   // controller --> camera
 static const char* CH_CAM_TO_CONT = "CAM_PAYLOAD";   // camera --> controller
+static const char* CH_SERVO_ACTIVATION = "SERVO_ACTIVATION";
 
 // Timeouts for waiting for camera to respond
 static const int CAM_WAIT_TIMEOUT_CALIB_MS  = 60000;  // 1 min for calibration - need this to wait enough time for camera to calibrate (attempts 3 times) 
@@ -96,7 +97,7 @@ void PayloadController::run()
             state = handleSaveResultsState();
             break;
         case TERMINATE_RUN:
-            state = handleTerminateRunState();
+            state = handleTerminateRunState(); // unimplemented
             break;
         case ERROR:
             state = handleErrorState();
@@ -158,6 +159,7 @@ state_t PayloadController::handleReadTrajectoryState()
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
     // Automatically transition to servo calibration when the trajectory can be read
+    publishServoActivationState(Commands::ServoActivation::SERVO_ACTIVATE);
     std::cout << "[INFO] Payload controller state set to CALIBRATE_SERVOS." << std::endl;
     return CALIBRATE_SERVOS;
 }
@@ -324,6 +326,8 @@ state_t PayloadController::handleRunningState()
 
 state_t PayloadController::handleSaveResultsState()
 {
+    publishServoActivationState(Commands::ServoActivation::SERVO_DEACTIVATE);
+
     // Create a results file and save the servo angles across the trajectory
     // TODO
     // Suggested from Ollie - use this as base for code to save into experiment_results, then I will append to same file in camera python
@@ -401,6 +405,10 @@ state_t PayloadController::handleSaveResultsState()
 
 state_t PayloadController::handleTerminateRunState()
 {
+    // TODO: will just error if we enter this state, unimplemented
+
+    publishServoActivationState(Commands::ServoActivation::SERVO_DEACTIVATE);
+
     if (retractPlatform() == false)
     {
         error.msg = "Failed to retract the platform automatically.";
@@ -426,7 +434,9 @@ state_t PayloadController::handleTerminateRunState()
 
 state_t PayloadController::handleErrorState()
 {
-    // Publish ERROR state to camera 
+    publishServoActivationState(Commands::ServoActivation::SERVO_DEACTIVATE);
+
+    // Publish ERROR state to camera
     publishCameraCommand(ERROR, DEBUG_MODE);
     
     // TODO: determine if the error message should be used elsewhere
@@ -1118,6 +1128,13 @@ void PayloadController::publishRunResult(int8_t return_id)
     msg.return_id = return_id;
     std::cout << "[INFO] Publishing to RUN_RESULT: return_id=" << (int)return_id << std::endl;
     lcm.publish("RUN_RESULT", &msg);
+}
+
+void PayloadController::publishServoActivationState(int8_t command)
+{
+    payload_messages::servo_activation_t msg;
+    msg.command = command;
+    lcm.publish(CH_SERVO_ACTIVATION, &msg);
 }
 
 // updated with error.msg

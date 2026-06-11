@@ -11,6 +11,7 @@
 #include "run_result_t.hpp"
 #include "switch_state_t.hpp"
 #include "payload_cont_to_cam_msg_t.hpp"
+#include "servo_activation_t.hpp"
 
 #include "payloadConfig.hpp"
 
@@ -171,6 +172,7 @@ class PayloadController
         // --- LCM publisher methods -------------------------------------------
         void publishCameraCommand(state_t state, bool debug_mode);
         void publishRunResult(int8_t return_id);
+        void publishServoActivationState(int8_t command);
 
     public:
         PayloadController();

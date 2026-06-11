@@ -1,4 +1,5 @@
 #include "servoController.hpp"
+#include "commands.hpp"
 
 #include <iostream>
 #include <fcntl.h>
@@ -12,7 +13,7 @@
 #define MAGIC_OFFSET_CORRECTION 700
 
 ServoController::ServoController(const char* device, int num_motors, const std::string& channel_name)
-    : _num_motors(num_motors), _channel_name(channel_name) {
+    : _num_motors(num_motors), _device(device), _channel_name(channel_name) {
 
     std::cout << "Starting Servo Controller..." << std::endl;
 
@@ -20,11 +21,21 @@ ServoController::ServoController(const char* device, int num_motors, const std::
         std::cerr << "Failed to initialize LCM" << std::endl;
     }
 
-    // Correct LCM Subscription syntax
     lcm.subscribe(_channel_name, &ServoController::handleServoAngMsg, this);
+    lcm.subscribe("SERVO_ACTIVATION", &ServoController::handleServoActivationMsg, this);
 
-    // Use the class member _fd, don't redeclare 'int _fd' here!
-    _fd = open(device, O_RDWR | O_NOCTTY | O_SYNC);
+    _positions.resize(_num_motors, 0.0);
+}
+
+ServoController::~ServoController() {
+    neutraliseServos();
+}
+
+void ServoController::activateServos()
+{
+    if (_fd != -1) return;
+
+    _fd = open(_device.c_str(), O_RDWR | O_NOCTTY | O_SYNC);
     if (_fd == -1) {
         perror("Error opening serial port");
         return;
@@ -48,20 +59,28 @@ ServoController::ServoController(const char* device, int num_motors, const std::
 
     tcsetattr(_fd, TCSANOW, &options);
 
-    // Initialize vectors to the correct size
-    _positions.resize(_num_motors, 0.0);
-
-    std::cout << "Initialized Servo Controller on " << device << std::endl;
+    std::cout << "[INFO] Activating servos on " << _device << "." << std::endl;
 }
 
-ServoController::~ServoController() {
-    if (_fd != -1) close(_fd);
+void ServoController::neutraliseServos()
+{
+    if (_fd == -1) return;
+
+    std::cout << "[INFO] Disabling all servos." << std::endl;
+
+    for (int i = 0; i < _num_motors; i++)
+    {
+        _maestroSetTarget(i, 0);
+    }
+
+    close(_fd);
+    _fd = -1;
 }
 
 void ServoController::handleServoAngMsg(const lcm::ReceiveBuffer* rbuf,
-    const std::string& chan, const payload_messages::servo_targets_t* msg) 
+    const std::string& chan, const payload_messages::servo_targets_t* msg)
 {
-    (void)rbuf; // Cast to void to avoid unused parameter compiler warnings 
+    (void)rbuf;
     (void)chan;
 
     // Assume fixed number of servos
@@ -74,36 +93,36 @@ void ServoController::handleServoAngMsg(const lcm::ReceiveBuffer* rbuf,
     }
     std::cout << std::endl;
 
-    /* 
-    Calibration measurements from Maestro Control Center 
+    /*
+    Calibration measurements from Maestro Control Center
 
     Servo 0
         Up:         917.50
-        Horizontal: 1880.00 
-        ADC limit:  2224.00 
+        Horizontal: 1880.00
+        ADC limit:  2224.00
 
-    Servo 1: 
+    Servo 1:
         Up:         2189.00
         Horizontal: 1300.00
-        ADC limit:  2224.00 
-    
+        ADC limit:  2224.00
 
-    Servo 2: 
+
+    Servo 2:
         Up:         877.50
         Horizontal: 1813.00
         ADC limit:  2224.00
 
-    Servo 3: 
+    Servo 3:
         Up:         2166.75
         Horizontal: 1117.00
         ADC limit:  2224.00
 
-    Servo 4: 
+    Servo 4:
         Up:         854.75
         Horizontal: 1784.50
         ADC limit:  2224.00
 
-    Servo 5: 
+    Servo 5:
         Up:         2184.00
         Horizontal: 1271.25
         ADC limit:  2224.00
@@ -121,66 +140,40 @@ void ServoController::handleServoAngMsg(const lcm::ReceiveBuffer* rbuf,
         units_per_radian[i] = std::abs(max_pwm[i] - flat_pwm[i]) / (M_PI/2);
     }
 
-    // const int EVEN_MIN = 816;
-    // const int EVEN_MAX = 3008;
-    // const int ODD_MIN = 384;
-    // const int ODD_MAX = 2112;
-    // int even_centre = (EVEN_MAX + EVEN_MIN) / 2;
-    // int odd_centre = (ODD_MAX + ODD_MIN) / 2;
-    // int even_units_per_radian = (EVEN_MAX - EVEN_MIN) / M_PI;
-    // int odd_units_per_radian = (ODD_MAX - ODD_MIN) / M_PI;
-
     // Extract servo targets and convert to Maestro units
     std::cout << "Maestro targets:";
     for (int i = 0; i < count; i++)
     {
         float angle_rad = msg->angles[i];
-        
-        // Convert the angle in radians to a PWM signal 
+
+        // Convert the angle in radians to a PWM signal
         unsigned short maestro_target;
         if (i % 2 == 1) // Odd - range max is up
         {
-            // maestro_target = mid_point + float_target * half_range / (M_PI/2) + MAGIC_OFFSET;
-            // maestro_target = odd_centre + angle_rad * odd_units_per_radian;
             maestro_target = flat_pwm[i] + angle_rad * units_per_radian[i];
         }
         else // Even - range max is down
         {
-            // maestro_target = mid_point - float_target * half_range / (M_PI/2) + MAGIC_OFFSET + MAGIC_OFFSET_CORRECTION;
-            // maestro_target = even_centre - angle_rad * even_units_per_radian;
-            maestro_target = flat_pwm[i] - angle_rad * units_per_radian[i]; 
+            maestro_target = flat_pwm[i] - angle_rad * units_per_radian[i];
         }
         std::cout << " s" << i << ": " << maestro_target;
+
         // Write to hardware
         _maestroSetTarget(i, maestro_target);
     }
     std::cout << std::endl;
 }
 
-// void ServoController::neutraliseServos()
-// {
-//     std::cout << "[INFO] Neutralising all servos." << std::endl;
-
-//     const int EVEN_MIN = 816,  EVEN_MAX = 3008;
-//     const int ODD_MIN  = 384,  ODD_MAX  = 2112;
-//     int even_centre = (EVEN_MAX + EVEN_MIN) / 2;
-//     int odd_centre  = (ODD_MAX  + ODD_MIN)  / 2;
-
-//     for (int i = 0; i < _num_motors; i++)
-//     {
-//         unsigned short centre = (i % 2 == 1) ? odd_centre : even_centre;
-//         _maestroSetTarget(i, centre);
-//     }
-// }
-
-void ServoController::neutraliseServos()
+void ServoController::handleServoActivationMsg(const lcm::ReceiveBuffer* rbuf,
+    const std::string& chan, const payload_messages::servo_activation_t* msg)
 {
-    std::cout << "[INFO] Disabling all servos." << std::endl;
+    (void)rbuf;
+    (void)chan;
 
-    for (int i = 0; i < _num_motors; i++)
-    {
-        _maestroSetTarget(i, 0);
-    }
+    if (msg->command == Commands::ServoActivation::SERVO_ACTIVATE)
+        activateServos();
+    else if (msg->command == Commands::ServoActivation::SERVO_DEACTIVATE)
+        neutraliseServos();
 }
 
 void ServoController::_maestroSetTarget(unsigned char channel, unsigned short target) {

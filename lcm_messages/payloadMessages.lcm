@@ -59,5 +59,10 @@ struct servo_angs
 {
     int64_t timestamp;
     int32_t num_channels;
-    double position[num_channels]; 
+    double position[num_channels];
+}
+
+struct servo_activation_t
+{
+    int8_t command;
 }

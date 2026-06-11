@@ -31,6 +31,12 @@ namespace Commands
         SAVE_SUCCESS,
         SAVE_FAIL
     };
+
+    enum ServoActivation
+    {
+        SERVO_DEACTIVATE,
+        SERVO_ACTIVATE
+    };
 }
 
 #endif
