@@ -406,7 +406,6 @@ def save_calib_video_picam(picam2_, display_widget = False, calib_time=5.0, cali
 
     return picam2_
 
-
 # Extract the current settings from autofocus for later re-application
 def extract_applied_settings(picam2_):
     metadata = picam2_.capture_metadata()
@@ -505,9 +504,6 @@ def open_picam_for_exp(params, picam2_, saved_cam_settings):
         return None 
 
 
-import struct
-
-
 # Saves frames and histograms from experiment 
 def save_exp_video(picam2_, display_widget=False, save_debug_images=False, exp_time=30.0, WINDOW_SIZE=1, output_dir="outputs"):
     
@@ -555,9 +551,17 @@ def save_exp_video(picam2_, display_widget=False, save_debug_images=False, exp_t
         )
         visual_event_image = e_camera_emulator.get_visual_events_image(event_image)
         prev_frame = frame
+        
+        # ## ORIGINAL (uncomment if want to go back to full size image)
+        # gray_event = cv.cvtColor(event_image, cv.COLOR_BGR2GRAY) if event_image.ndim == 3 else event_image
+        
+        ## CROPPED (crop bounds confirmed, but this code untested in full experiment run)
+        # Crops to 360x320
+        x1, y1, x2, y2 = 140, 80, 500, 400
+        event_image_cropped = event_image[y1:y2, x1:x2]
+        gray_event = cv.cvtColor(event_image_cropped, cv.COLOR_BGR2GRAY) if event_image_cropped.ndim == 3 else event_image_cropped
+        # Everything else below like normal
 
-        # Add to spatial histogram
-        gray_event = cv.cvtColor(event_image, cv.COLOR_BGR2GRAY) if event_image.ndim == 3 else event_image
         gray_event = gray_event.astype(np.float32)
         if event_hist is None:
             event_hist = np.zeros_like(gray_event, dtype=np.float32)
@@ -574,7 +578,7 @@ def save_exp_video(picam2_, display_widget=False, save_debug_images=False, exp_t
                 # ~ # 8 bit version to csv
                 # ~ hist_uint8 = np.clip(event_hist, 0, 255).astype(np.uint8)
                 # ~ hist_records.append(hist_uint8.flatten())
-                # 1 bit to csv
+                # 1 bit for hex to csv
                 hist_binary = (event_hist > 0).astype(np.uint8)
                 hist_records.append(hist_binary.flatten())
 
@@ -743,46 +747,7 @@ def process_baseline_data(objpoints_3boards, mtx, dist, ROIS, CHESSBOARD=(5, 3),
     # results_csv.close()
 
 
-# Save the experiment results
-import csv
-
-# def save_exp_results(hist_records, results_dir="outputs/experiment_results"):
-#     # Setup output folders
-#     # results_dir = "outputs/experiment_results"
-    
-#     os.makedirs(results_dir, exist_ok=True) # backup
-    
-#     # ~ # Write histogram records to binary file
-#     # ~ results_file = open(os.path.join(results_dir, "experiment_results.bin"), "ab")
-#     # ~ for record in hist_records:
-#         # ~ results_file.write(record)
-#     # ~ results_file.close()
-    
-#     # ~ print("[save_exp_results] [INFO] Experiment results saved\n")
-    
-#     # Debugging
-#     # print(f"[save_exp_results] [INFO] hist_records count: {len(hist_records)}")
-#     # if len(hist_records) > 0:
-#     #     print(f"[save_exp_results] [INFO] First record shape: {hist_records[0].shape}, dtype: {hist_records[0].dtype}")
-    
-#     # Write histogram to csv
-#     csv_path = os.path.join(results_dir, "experiment_results.csv")
-#     # with open(csv_path, "a", newline="") as f:
-#     #     writer = csv.writer(f)
-#     #     for record in hist_records:
-#     #         writer.writerow(record.tolist())
-#     # Write with hex encoding
-#     csv_path = os.path.join(results_dir, "experiment_results.csv")
-#     with open(csv_path, "a", newline="") as f:
-#         writer = csv.writer(f)
-#         # writer.writerow(["# histograms (hex-encoded, one row per window)"])
-#         for record in hist_records:
-#             # Pack bits then encode as hex string - compact single-column row
-#             packed = np.packbits(record)
-#             writer.writerow([packed.tobytes().hex()])
-#     print("[save_exp_results] [INFO] Experiment results saved\n")
-    
-
+# Write out histograms in 1 bit encoding (appended to pose estimates)
 def save_exp_results(hist_records, results_dir="outputs/experiment_results"):
     os.makedirs(results_dir, exist_ok=True)
 
@@ -792,9 +757,13 @@ def save_exp_results(hist_records, results_dir="outputs/experiment_results"):
     csv_path = os.path.join(results_dir, "experiment_results.csv")
     with open(csv_path, "a", newline="") as f:
         writer = csv.writer(f)
+        # Hex encoding
         for record in hist_records:
             packed = np.packbits(record)
             writer.writerow([packed.tobytes().hex()])
+        # ## 1 bit encoding
+        # for record in hist_records:
+        #     writer.writerow(record.tolist())
     print("[save_exp_results] [INFO] Experiment results saved\n")
 
 
@@ -817,50 +786,3 @@ def cleanup_images(cleanup_enabled=False, output_dir="outputs"):
             except Exception as e:
                 print(f"[WARN] Failed to delete {file_path}: {e}")
     print("Deleted saved images for this run.\n")
-
-# ~ # Delete experiment images, and debug images if produced
-# ~ def cleanup_images(cleanup_enabled = False, output_dir="outputs"):
-    # ~ if cleanup_enabled == True:
-        # ~ # Delete calibration images
-        # ~ for file_path in glob.glob(os.path.join("outputs/calibration", "*")):
-            # ~ try:
-                # ~ os.remove(file_path)
-            # ~ except Exception as e:
-                # ~ print(f"[WARN] Failed to delete {file_path}: {e}")
-
-        # ~ # Delete calibration test debug images
-        # ~ for file_path in glob.glob(os.path.join("outputs/calibration_test", "*")):
-            # ~ try:
-                # ~ os.remove(file_path)
-            # ~ except Exception as e:
-                # ~ print(f"[WARN] Failed to delete {file_path}: {e}")
-
-        # ~ # Delete experiment baseline images
-        # ~ for file_path in glob.glob(os.path.join("outputs/baseline", "*")):
-            # ~ try:
-                # ~ os.remove(file_path)
-            # ~ except Exception as e:
-                # ~ print(f"[WARN] Failed to delete {file_path}: {e}")
-
-        # ~ # Delete baseline pose debug images
-        # ~ for file_path in glob.glob(os.path.join("outputs/baseline_pose", "*.png")):
-            # ~ try:
-                # ~ os.remove(file_path)
-            # ~ except Exception as e:
-                # ~ print(f"[WARN] Failed to delete {file_path}: {e}")
-        
-        # ~ # Delete event data frames
-        # ~ for file_path in glob.glob(os.path.join("outputs/frames/", "*")):
-            # ~ try:
-                # ~ os.remove(file_path)
-            # ~ except Exception as e:
-                # ~ print(f"[WARN] Failed to delete {file_path}: {e}")
-        
-        # ~ # Delete event data histograms
-        # ~ for file_path in glob.glob(os.path.join("outputs/histograms/", "*")):
-            # ~ try:
-                # ~ os.remove(file_path)
-            # ~ except Exception as e:
-                # ~ print(f"[WARN] Failed to delete {file_path}: {e}")
-
-        # ~ print("Deleted saved images for this run.\n")
