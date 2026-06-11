@@ -223,6 +223,7 @@ state_t PayloadController::handleCalibrateCameraState()
     }
 
     // Automatically deploy platform when camera has been calibrated
+    deploy_step = 0;
     std::cout << "[INFO] Payload controller state set to DEPLOY." << std::endl;
     return DEPLOY;
 }
