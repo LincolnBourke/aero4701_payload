@@ -7,9 +7,6 @@ import cameraHelper as h
 import lcmHelper as lcm_h
 import os
 
-# TODO put helper functions into class definition?
-# TODO make header for class definition?
-
 ## PARAMETERS
 CAMERA_SETTINGS_PATH = "apps/camera/camera_settings/pi_camera_settings.txt"
 BOOT_COUNT_FILE      = "/home/slave2/Documents/service_test/boot_count.txt"
@@ -34,19 +31,8 @@ class PayloadState(IntEnum):
     ERROR                = 8
     DEBUG                = 9
 
-# typedef enum State {
-#     IDLE,               // Waits for command to start an experiment
-#     READ_TRAJECTORY,    // Reads the trajectory file & converts to interpolated servo angles 
-#     CALIBRATE_SERVOS,   // Uses limit switches to calibrate servos
-#     CALIBRATE_CAMERA,   // Moves platform to let camera node calibrate
-#     DEPLOY,             // Deploys the docking port to the starting position
-#     RUNNING,            // Runs the experiment
-#     SAVE_RESULTS,       // Saves experiment data and tells the camera node to do the same
-#     TERMINATE_RUN,      // Moves the platform back to the home position 
-#     ERROR,              // Publishes an erroneous run result
-# } state_t;
 
-## Read boot count (read-only — the service script owns incrementing it)
+## Read boot count (read-only - the service script owns incrementing it)
 def get_boot_count(counter_file):
     if os.path.exists(counter_file):
         with open(counter_file, "r") as f:
