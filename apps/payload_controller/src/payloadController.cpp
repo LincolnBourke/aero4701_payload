@@ -30,6 +30,9 @@ static const bool DEBUG_MODE = true;
 #define CALIBRATION_END_Z 0 // mm
 #define PLATFORM_REST_Z 1 // mm, assumed platform height at rest before calibration begins
 
+// Platform height during camera calibration
+#define CAMERA_CALIBRATION_Z 10 // mm
+
 // Maximum deployment speeds
 #define DEPLOY_MAX_LINEAR_VEL_MM_S   2.0f  // mm/s, max translation speed during deployment
 #define DEPLOY_MAX_ANGULAR_VEL_RAD_S 0.05f  // rad/s, max rotation speed during deployment
@@ -178,7 +181,7 @@ state_t PayloadController::handleReadTrajectoryState()
 state_t PayloadController::handleCalibrateServosState()
 {
     // Phase 1: Move platform outward from rest position to calibration start
-    if (!moveToCalibrationStart())
+    if (!moveAlongZAxis(PLATFORM_REST_Z, CALIBRATION_START_Z))
     {
         std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
         return ERROR;
@@ -202,6 +205,13 @@ state_t PayloadController::handleCalibrateServosState()
 
 state_t PayloadController::handleCalibrateCameraState()
 {
+    // Move servos up for camera calibration
+    if (!moveAlongZAxis(CALIBRATION_END_Z, CAMERA_CALIBRATION_Z))
+    {
+        std::cout << "[INFO] Payload controller state set to ERROR." << std::endl;
+        return ERROR;
+    }
+
     // Start camera nodes
     publishCameraCommand(CALIBRATE_CAMERA, DEBUG_MODE);
     
@@ -511,20 +521,57 @@ state_t PayloadController::handleDebugState()
 
 // Moves the platform from its homed position (assumed start here) to the starting
 // position of the calibration. 
-bool PayloadController::moveToCalibrationStart()
+// bool PayloadController::moveToCalibrationStart()
+// {
+//     // Define extrema of the trajectory
+//     PlatformPose rest_pose = PlatformPose{Vector3f::Zero(), Quaternionf::Identity()};
+//     PlatformPose outward_start_pose = PlatformPose{Vector3f::Zero(), Quaternionf::Identity()};
+//     rest_pose.position(2) = PLATFORM_REST_Z;
+//     outward_start_pose.position(2) = CALIBRATION_START_Z;
+//     std::vector<PlatformPose> outward_end_points = {rest_pose, outward_start_pose};
+
+//     // Build the trajectory by interpolation
+//     trajectory_t outward_trajectory;
+//     if (interpolateTrajectory(outward_end_points, outward_trajectory, CALIBRATION_END_POINT_STEP, CALIBRATION_STRUCT_STEP) == false)
+//     {
+//         error.msg = "Could not generate outward calibration trajectory.";
+//         return false;
+//     }
+
+//     // Move platform along trajectory
+//     startTimer();
+//     size_t j = 0;
+//     while (j < outward_trajectory.times.size())
+//     {
+//         if (readTimer() >= outward_trajectory.times[j])
+//         {
+//             if (platform.moveTo(outward_trajectory.poses[j]) == false)
+//             {
+//                 error.msg = "Could not move platform to starting pose during servo calibration.";
+//                 return false;
+//             }
+//             j++;
+//         }
+//     }
+
+//     return true;
+// }
+
+// Move the platform between two points along the z axis 
+bool PayloadController::moveAlongZAxis(float start_z, float end_z)
 {
     // Define extrema of the trajectory
     PlatformPose rest_pose = PlatformPose{Vector3f::Zero(), Quaternionf::Identity()};
     PlatformPose outward_start_pose = PlatformPose{Vector3f::Zero(), Quaternionf::Identity()};
-    rest_pose.position(2) = PLATFORM_REST_Z;
-    outward_start_pose.position(2) = CALIBRATION_START_Z;
+    rest_pose.position(2) = start_z;
+    outward_start_pose.position(2) = end_z;
     std::vector<PlatformPose> outward_end_points = {rest_pose, outward_start_pose};
 
     // Build the trajectory by interpolation
     trajectory_t outward_trajectory;
     if (interpolateTrajectory(outward_end_points, outward_trajectory, CALIBRATION_END_POINT_STEP, CALIBRATION_STRUCT_STEP) == false)
     {
-        error.msg = "Could not generate outward calibration trajectory.";
+        error.msg = "Could not generate trajectory along z axis.";
         return false;
     }
 
@@ -537,7 +584,7 @@ bool PayloadController::moveToCalibrationStart()
         {
             if (platform.moveTo(outward_trajectory.poses[j]) == false)
             {
-                error.msg = "Could not move platform to starting pose during servo calibration.";
+                error.msg = "Could not move platform along z axis trajectory.";
                 return false;
             }
             j++;
@@ -546,6 +593,7 @@ bool PayloadController::moveToCalibrationStart()
 
     return true;
 }
+
 
 bool PayloadController::descendUntilSwitchActivation(bool& switches_activated)
 {
@@ -954,6 +1002,7 @@ bool PayloadController::buildDeployTrajectory()
 
     // Phase 1: lift Z from rest to target_z, flat orientation
     PlatformPose z_start = {Vector3f::Zero(), Quaternionf::Identity()};
+    z_start.position[2]  = CAMERA_CALIBRATION_Z; 
     PlatformPose z_end   = {Vector3f(0.0f, 0.0f, target_z), Quaternionf::Identity()};
     trajectory_t phase1;
     if (!interpolateTrajectory({z_start, z_end}, phase1, phase1_ms, TRAJECTORY_STRUCT_STEP))

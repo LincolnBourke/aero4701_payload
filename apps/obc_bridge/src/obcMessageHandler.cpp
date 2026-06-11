@@ -31,8 +31,14 @@ void ObcMessageHandler::drainUart()
     UART_msg_t msg;
     while (uart_interface.receive(&msg, DEFAULT_UART_TIMEOUT_US))
     {
+        // std::cout << "Received UART message." << std::endl;
+
         if (UART_checkCRC(&msg))
+        {
             receive_queue.push_back(msg);
+            // std::cout << "CRC Passed." << std::endl;
+        }
+            
     }
 }
 
@@ -53,11 +59,14 @@ bool ObcMessageHandler::transmit(uint8_t id)
 // Transmit a unified ACK; payload[0] identifies the message being acknowledged
 bool ObcMessageHandler::transmitAck(uint8_t acked_id)
 {
+    std::cout << "Transmitting ACK." << std::endl;
+    (void)acked_id;
+
     UART_msg_t msg;
     msg.sof        = UART_SOF;
     msg.id         = PYLD_ACK_ID;
     msg.length     = 1;
-    msg.payload[0] = acked_id;
+    msg.payload[0] = PYLD_ACK_ID;// acked_id;
 
     return uart_interface.transmit(&msg);
 }
@@ -82,14 +91,23 @@ bool ObcMessageHandler::checkMessage(uint8_t id)
 // On match, stores the message in last_message_read and removes it from the queue.
 bool ObcMessageHandler::checkAck(uint8_t acked_id)
 {
+    (void)acked_id;
+
     for (auto it = receive_queue.begin(); it != receive_queue.end(); ++it)
     {
-        if (it->id == PYLD_ACK_ID && it->length >= 1 && it->payload[0] == acked_id)
+        if (it->id == PYLD_ACK_ID && it->length >= 1)
         {
             last_message_read = *it;
             receive_queue.erase(it);
             return true;
         }
+
+        // if (it->id == PYLD_ACK_ID && it->length >= 1 && it->payload[0] == acked_id)
+        // {
+        //     last_message_read = *it;
+        //     receive_queue.erase(it);
+        //     return true;
+        // }
     }
     return false;
 }
@@ -124,7 +142,10 @@ bool ObcMessageHandler::checkPacket()
     for (auto it = receive_queue.begin(); it != receive_queue.end(); ++it)
     {
         if (it->id != PYLD_PACKET_ID)
+        {
+            // std::cout << "Skipping message in queue when searching for packet." << std::endl;
             continue;
+        }
 
         // Extract the sequence index embedded in the first two payload bytes
         uint16_t index;
@@ -424,7 +445,7 @@ bool ObcMessageHandler::serialiseResults(std::string file_path)
     results_header = {};
     results_header.sof = UART_SOF;
     results_header.id = PYLD_TRANSFER_HEADER_ID;
-    uint8_t  file_id    = 0;
+    uint8_t  file_id    = 0x05;
     uint32_t num_chunks = static_cast<uint32_t>(num_msgs);
     memcpy(&results_header.payload[0], &file_id,        sizeof(uint8_t));
     memcpy(&results_header.payload[1], &max_chunk_size, sizeof(uint32_t));
