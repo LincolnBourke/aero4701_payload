@@ -26,10 +26,11 @@ class PayloadState(IntEnum):
     CALIBRATE_CAMERA     = 3
     DEPLOY               = 4
     RUNNING              = 5
-    SAVE_RESULTS         = 6
-    TERMINATE_RUN        = 7
-    ERROR                = 8
-    DEBUG                = 9
+    RETURN               = 6
+    SAVE_RESULTS         = 7
+    TERMINATE_RUN        = 8
+    ERROR                = 9
+    DEBUG                = 10
 
 
 ## Read boot count (read-only - the service script owns incrementing it)
@@ -81,6 +82,7 @@ class Camera:
             PayloadState.IDLE:              None,
             PayloadState.READ_TRAJECTORY:   None,
             PayloadState.CALIBRATE_SERVOS:  None,
+            PayloadState.RETURN:            None,
         }
 
     def handle_state(self, state, debug_mode):
