@@ -282,7 +282,7 @@ state_t PayloadController::handleRunningState()
 
         // Start timing servo feedback sample gap
         servo_feedback.clear();
-        last_feedback_sample_time = std::chrono::steady_clock::now();
+        last_feedback_sample_time = std::chrono::steady_clock::now() - std::chrono::milliseconds(SERVO_FEEDBACK_INTERVAL_MS);
     }
 
     // Make an incremental step to move the platform along the trajectory
