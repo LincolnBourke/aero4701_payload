@@ -237,6 +237,8 @@ ObcBridgeState ObcBridge::handleDoExperimentState()
         // Drain all available UART messages into the receive queue once per cycle
         obc_messager.drainUart();
 
+        while (lcm.handleTimeout(0) > 0);
+
         if (lcm_handler.checkRunResult(run_result_id) == true)
         {
             if (run_result_id == Commands::RunResult::RUN_SUCCESS)
@@ -425,6 +427,8 @@ ObcBridgeState ObcBridge::handleDebugState()
     {
         // Drain all available UART messages into the receive queue once per cycle
         obc_messager.drainUart();
+
+        while (lcm.handleTimeout(0) > 0);
 
         if (lcm_handler.checkRunResult(run_result_id) == true)
         {
