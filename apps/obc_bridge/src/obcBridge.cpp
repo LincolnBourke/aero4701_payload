@@ -49,7 +49,7 @@ void ObcBridge::run()
 
     while (true)
     {
-        ObcBridgeState next;
+        ObcBridgeState next = ObcBridgeState::IDLE;
 
         switch (state)
         {

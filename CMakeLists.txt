@@ -28,7 +28,7 @@ add_subdirectory(apps/servo_controller)
 add_subdirectory(apps/servo_monitor)
 add_subdirectory(apps/servo_state_reader)
 add_subdirectory(apps/camera)
-add_subdirectory(apps/limit_switches)
+# add_subdirectory(apps/limit_switches)
 add_subdirectory(apps/obc_bridge)
 add_subdirectory(apps/switch_monitor)
 

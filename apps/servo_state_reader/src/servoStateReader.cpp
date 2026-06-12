@@ -63,7 +63,8 @@ void ServoStateReader::pubState() {
 
         // Read and discard stale reading
         uint8_t stale;
-        read(_file, &stale, 1);  // Discard previous conversion result
+        auto result = read(_file, &stale, 1);  // Discard previous conversion result
+        (void)result;
 
         // Now should be fresh 
         uint8_t adcValue;

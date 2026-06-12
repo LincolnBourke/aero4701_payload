@@ -902,6 +902,7 @@ bool PayloadController::interpolateTrajectory(const std::vector<PlatformPose>& r
     // Require at least two poses to interpolate between
     if (raw_poses.size() < 2)
     {
+        std::cout << "Too few poses for interpolation." << std::endl;
         return false;
     }
 
