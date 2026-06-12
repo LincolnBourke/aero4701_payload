@@ -724,11 +724,16 @@ def process_baseline_data(objpoints_3boards, mtx, dist, ROIS, CHESSBOARD=(5, 3),
             all_tvecs.append(np.mean(tvecs_all, axis=0).tolist())
             all_rvecs.append(np.mean(rvecs_all, axis=0).tolist())
 
+        # # Only write out mean when all three boards are detected 
+        # if len(tvecs_all) == 3:
+        #     all_tvecs.append(np.mean(tvecs_all, axis=0).tolist())
+        #     all_rvecs.append(np.mean(rvecs_all, axis=0).tolist())
+        # else:
+        #     all_tvecs.append([0.0, 0.0, 0.0])
+        #     all_rvecs.append([0.0, 0.0, 0.0])
+
         if save_debug_images:
             cv.imwrite(os.path.join(pose_folder, f"{name}_multi_pose.png"), img)
-
-    # For binary
-    # ~ results_file.close()
 
     # Write: all positions (tx,ty,tz) then all attitudes (rx,ry,rz), one frame per row
     csv_path = os.path.join(results_dir, "experiment_results.csv")
