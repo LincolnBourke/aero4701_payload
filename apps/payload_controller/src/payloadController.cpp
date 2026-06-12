@@ -28,7 +28,7 @@ static const bool DEBUG_MODE = true;
 #define CALIBRATION_STRUCT_STEP 50 // ms
 #define CALIBRATION_START_Z 5 // mm
 #define CALIBRATION_END_Z 0 // mm
-#define PLATFORM_REST_Z 1 // mm, assumed platform height at rest before calibration begins
+#define PLATFORM_REST_Z 0 // mm, assumed platform height at rest before calibration begins
 
 // Platform height during camera calibration
 #define CAMERA_CALIBRATION_Z 10 // mm
