@@ -74,10 +74,10 @@ void ServoStateReader::pubState() {
             // Note: maintaining your existing 5-channel reverse mapping
             msg.angles[5-channel] = _mapRawToAngle(
                 (int)adcValue,
-                _cal[channel].raw_down,
-                _cal[channel].raw_up,
-                _cal[channel].ang_down_rad,
-                _cal[channel].ang_up_rad
+                _cal[5-channel].raw_down,
+                _cal[5-channel].raw_up,
+                _cal[5-channel].ang_down_rad,
+                _cal[5-channel].ang_up_rad
             );
             // Store the raw value in the same reversed index position
             raw_adcs[5-channel] = (int)adcValue; 

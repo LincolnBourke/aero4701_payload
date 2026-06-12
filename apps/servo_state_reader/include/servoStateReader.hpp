@@ -66,13 +66,23 @@ class ServoStateReader
         //     { 206, 97, 0,  M_PI/2},  // ch1 (inverted ADC)
         //     { 145, 249, 0,  M_PI/2},  // ch0
         // };
+        // const ChannelCalibration _cal[6] = {
+        //     { 145, 249, 0, M_PI/2},  // ch0
+        //     { 206,  97, 0, M_PI/2},  // ch1 (inverted ADC)
+        //     { 129, 248, 0, M_PI/2},  // ch2
+        //     { 210, 100, 0, M_PI/2},  // ch3 (inverted ADC)
+        //     { 150, 252, 0, M_PI/2},  // ch4
+        //     { 217, 104, 0, M_PI/2},  // ch5 (inverted ADC)
+        // };
+
         const ChannelCalibration _cal[6] = {
-            { 145, 249, 0, M_PI/2},  // ch0
-            { 206,  97, 0, M_PI/2},  // ch1 (inverted ADC)
-            { 129, 248, 0, M_PI/2},  // ch2
-            { 210, 100, 0, M_PI/2},  // ch3 (inverted ADC)
-            { 150, 252, 0, M_PI/2},  // ch4
-            { 217, 104, 0, M_PI/2},  // ch5 (inverted ADC)
+            // raw_down, raw_up, ang_down_rad, ang_up_rad
+            { 205, 99 , 0, M_PI/2},  // S7
+            { 126, 235, 0, M_PI/2},  // S8 (inverted ADC)
+            { 198, 96 , 0, M_PI/2},  // S9
+            { 142, 249, 0, M_PI/2},  // S10 (inverted ADC)
+            { 211, 110, 0, M_PI/2},  // S11
+            { 132, 239, 0, M_PI/2},  // S12 (inverted ADC)
         };
 
 
