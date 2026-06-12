@@ -224,7 +224,7 @@ ObcBridgeState ObcBridge::handleReceiveSettingsState()
 
 ObcBridgeState ObcBridge::handleDoExperimentState()
 {
-    return ObcBridgeState::TRANSMIT_EXPERIMENT_RESULTS;
+    // return ObcBridgeState::TRANSMIT_EXPERIMENT_RESULTS;
     int run_result_id;
 
     // Start the payload experiment
