@@ -25,4 +25,7 @@
 
 #define NUM_TIMESTEPS 150
 
+// Uncomment to open xterm debug windows on boot (requires xterm and x11-utils installed)
+#define DEBUG_WINDOW_ENABLED
+
 #endif
