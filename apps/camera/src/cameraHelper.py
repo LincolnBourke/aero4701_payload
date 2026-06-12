@@ -556,8 +556,11 @@ def save_exp_video(picam2_, display_widget=False, save_debug_images=False, exp_t
         # gray_event = cv.cvtColor(event_image, cv.COLOR_BGR2GRAY) if event_image.ndim == 3 else event_image
         
         ## CROPPED (crop bounds confirmed, but this code untested in full experiment run)
-        # Crops to 360x320
-        x1, y1, x2, y2 = 140, 80, 500, 400
+        # (original 640x480)
+        # x1, y1, x2, y2 = 140, 80, 500, 400 # good for camera min (360x320) (37.5%) (ideal)
+        # x1, y1, x2, y2 = 120, 40, 540, 450 # good for far (420x410) (56%)
+        x1, y1, x2, y2 = 80, 20, 580, 480 # good for close (500x460) (75%) (use for now)
+
         event_image_cropped = event_image[y1:y2, x1:x2]
         gray_event = cv.cvtColor(event_image_cropped, cv.COLOR_BGR2GRAY) if event_image_cropped.ndim == 3 else event_image_cropped
         # Everything else below like normal
